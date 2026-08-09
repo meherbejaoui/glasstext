@@ -120,32 +120,50 @@ function isBoundary(s, i, end, after) {
 
   // A terminal must be followed by whitespace. "3.5" and "e.g" fail here,
   // which is why decimals and mid-abbreviation periods survive.
-  if (!/\s/.test(s[after])) return false;
+  if (!WS.test(s[after])) return false;
 
   // What follows must be able to start a sentence: an opening quote/bracket,
   // a digit, or an uppercase letter. Lowercase implies we split mid-sentence.
-  const rest = s.slice(after);
-  const next = rest.match(/\s+(\S)/);
-  if (next && !/[\p{Lu}\p{N}"'‘“(\[«—-]/u.test(next[1])) return false;
+  //
+  // Scanned character by character rather than with s.slice(after).match(...).
+  // Slicing here copies the remainder of the document at every sentence
+  // terminal, which made segmentation quadratic: a 180 KB document spent 2.8s
+  // in this function alone. See docs/limits.md.
+  let k = after;
+  while (k < s.length && WS.test(s[k])) k++;
+  if (k < s.length && !SENTENCE_START.test(s[k])) return false;
 
   if (s[i] === '.') {
-    const before = s.slice(0, i);
     // Single-letter initial: "J. R. R. Tolkien", "F. Scott Fitzgerald".
-    if (/(^|[\s("'‘“])\p{L}$/u.test(before)) return false;
+    // The character before the dot is a letter, and before that is either the
+    // start of the text or an opening delimiter.
+    if (i > 0 && LETTER.test(s[i - 1]) && (i === 1 || BEFORE_INITIAL.test(s[i - 2]))) {
+      return false;
+    }
 
-    // Known abbreviation. Match the longest trailing token so that the "g" of
-    // "e.g." is tested as "e.g" and not just "g".
-    const token = before.match(/[\p{L}.]+$/u);
-    if (token) {
-      const t = token[0].toLowerCase().replace(/^\.+/, '');
+    // Known abbreviation. Walk back over the longest run of letters and dots
+    // so the "g" of "e.g." is tested as "e.g" rather than just "g". Bounded by
+    // token length, so this stays linear over the whole document.
+    let start = i;
+    while (start > 0 && TOKEN_CHAR.test(s[start - 1])) start--;
+    if (start < i) {
+      const t = s.slice(start, i).toLowerCase().replace(/^\.+/, '');
       if (ABBREVIATIONS.has(t)) return false;
-      const lastSegment = t.split('.').pop();
-      if (lastSegment && ABBREVIATIONS.has(lastSegment) && !t.includes('.')) return false;
     }
   }
 
   return true;
 }
+
+/**
+ * Single-character tests, hoisted so they are compiled once rather than on
+ * every call. None carry the /g flag, so none hold `lastIndex` state.
+ */
+const WS = /\s/;
+const LETTER = /\p{L}/u;
+const TOKEN_CHAR = /[\p{L}.]/u;
+const SENTENCE_START = /[\p{Lu}\p{N}"'‘“(\[«—-]/u;
+const BEFORE_INITIAL = /[\s("'‘“]/u;
 
 /**
  * Extract words.

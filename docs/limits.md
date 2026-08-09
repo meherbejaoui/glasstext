@@ -97,8 +97,31 @@ would publish.
 
 ## Performance
 
-Everything is synchronous and runs on the main thread. Analysis is O(n) in
-document length apart from the MTLD passes, and a ~90 KB document completes in
-well under a second (asserted in `test/analyze.test.js`). Documents in the
-megabytes would want a Web Worker; nothing in the library prevents that, since
-it has no DOM dependency.
+Everything is synchronous and runs on the main thread. Analysis is linear in
+document length; measured locally:
+
+| Characters | Time |
+| ---: | ---: |
+| 22,500 | 34 ms |
+| 90,000 | 114 ms |
+| 360,000 | 457 ms |
+
+Documents in the megabytes would want a Web Worker; nothing in the library
+prevents that, since it has no DOM dependency.
+
+### It was not always linear
+
+Segmentation was originally O(n²). `isBoundary()` called `s.slice(0, i)` and
+`s.slice(after)` to inspect the text around each candidate sentence terminal,
+copying the entire document once per sentence. A 180 KB document spent 2.8
+seconds inside `sentences()` alone.
+
+It was caught by a flaky CI failure rather than by the test that was supposed
+to cover it: that test asserted a wall-clock bound of 3000 ms, which fired on a
+loaded runner and said nothing about complexity. Fixing the slicing made a
+90 KB document 6.8× faster.
+
+The test now asserts the *shape* of the curve — doubling the input must less
+than triple the time — which is machine-independent and actually tests the
+property that matters. The lesson is worth keeping: an absolute timing
+threshold is simultaneously flaky and blind.
