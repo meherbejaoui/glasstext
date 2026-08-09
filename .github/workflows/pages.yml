@@ -39,12 +39,17 @@ jobs:
       # The site is static and needs no build: index.html, learn.html, assets/
       # and src/ are served exactly as they are committed. We stage the files
       # the site actually needs rather than publishing the whole repository.
+      #
+      # Deliberately NO CNAME file. This is a *project* Pages site living under
+      # the user site at meherbejaoui.com, so it is served from the subpath
+      # /glasstext/. A CNAME here would claim a hostname of its own and break
+      # that. Every path in the site is relative for the same reason -- nothing
+      # assumes it is at the root of a domain.
       - name: Stage the site
         run: |
           mkdir -p _site
           cp index.html learn.html _site/
           cp -r assets src _site/
-          cp CNAME _site/ 2>/dev/null || true
           # .nojekyll stops GitHub Pages running the files through Jekyll,
           # which would otherwise ignore any path beginning with an underscore.
           touch _site/.nojekyll

@@ -1,6 +1,6 @@
 # Known limits
 
-Developer-facing companion to the [Learn page](https://glasstext.meherbejaoui.com/learn.html#limits),
+Developer-facing companion to the [Learn page](https://www.meherbejaoui.com/glasstext/learn.html#limits),
 which covers the same ground for readers. This file is about implementation
 behaviour: what the code does wrong, and where it is pinned in the test suite.
 

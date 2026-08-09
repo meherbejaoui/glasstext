@@ -5,7 +5,7 @@ content-screening metrics for English prose — computed entirely in your browse
 with every number showing its arithmetic, its source paper, and the cases where
 it breaks.
 
-🔗 **[glasstext.meherbejaoui.com](https://glasstext.meherbejaoui.com)**
+🔗 **[www.meherbejaoui.com/glasstext](https://www.meherbejaoui.com/glasstext/)**
 
 ---
 
@@ -84,7 +84,7 @@ Things this project does that similar tools usually skip:
   or constants cross-checked — in [`src/citations.js`](src/citations.js),
   rendered to [`REFERENCES.md`](REFERENCES.md) so the two cannot drift.
 
-The [Learn page](https://glasstext.meherbejaoui.com/learn.html) is written
+The [Learn page](https://www.meherbejaoui.com/glasstext/learn.html) is written
 around the limits rather than around the features, including the most important
 one: **optimising a readability score can make writing worse**, and the score is
 a symptom rather than a target.
@@ -127,6 +127,14 @@ node tools/cross-check.mjs    # compare against textstat (needs pip install text
 The site is static and served from the repository root — no bundler, no
 framework, nothing to compile. `assets/app.js` is presentation only; all
 measurement lives in `src/` and is covered by the test suite.
+
+Deployment is a *project* Pages site sitting under the user site at
+`meherbejaoui.com`, so it is served from the subpath `/glasstext/`. Every path
+in the site is relative and nothing assumes a domain root, so it runs unchanged
+from any prefix — the deployed subpath, or `npm run serve` locally. (It needs a
+server rather than `file://`, because browsers block ES module loads over the
+file protocol.) For the same reason there is deliberately no `CNAME` file:
+adding one would claim a separate hostname and break the subpath.
 
 ```
 src/          the library: tokenize, syllables, readability, lexical, laws, style, screening

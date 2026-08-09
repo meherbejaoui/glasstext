@@ -44,11 +44,11 @@ To that list, add the substrate: it is Python 2 (`raw_input`, `print` statement,
 
 ## What replaced it
 
-The [Filter lab](https://glasstext.meherbejaoui.com/#filter) does the same job
+The [Filter lab](https://www.meherbejaoui.com/glasstext/#filter) does the same job
 locally, and instead of a verdict it shows you the trade-off you are actually
 making — substring matching versus whole-word matching versus normalise-then-match
 — with the false positives and the evasions both counted in front of you.
 
 The relevant reading is in [`src/screening.js`](../src/screening.js) and the
-[Scunthorpe section](https://glasstext.meherbejaoui.com/learn.html#filters) of
+[Scunthorpe section](https://www.meherbejaoui.com/glasstext/learn.html#filters) of
 the Learn page.
