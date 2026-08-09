@@ -1,10 +1,10 @@
 /**
  * Content screening, and why it does not work the way people expect.
  *
- * This repository began as a script that sent a document to a remote API and
- * printed "Profanity alert!". This module is its descendant, rebuilt to answer
- * the question the original never asked: what does a wordlist filter actually
- * do to text?
+ * Wordlist filters are the most-reimplemented idea in text processing, and
+ * almost every implementation asks the wrong question. "Does this text contain
+ * a banned word?" is easy and useless. The useful question is: what does a
+ * wordlist filter actually do to text?
  *
  * The answer has been known since the 1990s and gets rediscovered every few
  * years. Matching a banned substring inside a larger word produces the
@@ -167,8 +167,8 @@ function escapeRe(s) {
 /**
  * Screen text against a term list in one of three modes.
  *
- * - `substring`  match anywhere. What the original Checker.py effectively did.
- *                Maximum recall, catastrophic precision.
+ * - `substring`  match anywhere. The naive implementation, and the one most
+ *                often shipped. Maximum recall, catastrophic precision.
  * - `word`       match only complete words. Fixes Scunthorpe; loses to "h e l l".
  * - `normalized` normalise first, then match whole words. Catches evasion;
  *                reintroduces some false positives, because normalisation

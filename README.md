@@ -142,21 +142,22 @@ assets/       the web UI (app.js, app.css, samples.js)
 test/         node:test suite
 tools/        validation and generation scripts
 docs/         validation.md, limits.md
-attic/        the program this repository used to be
 ```
 
-## History
+## Contributing
 
-This repository was `Profanity-Check`: a 31-line Python 2 script that uploaded
-your document to a third-party API over plain HTTP and printed
-`Profanity alert !`.
+The most valuable contribution is a correction. If a number is wrong, a source
+is mischaracterised, or a limitation is understated,
+[open an issue](https://github.com/meherbejaoui/glasstext/issues) — that is the
+kind of report this project is built to accept.
 
-It is preserved in [`attic/`](attic/) with a full account of its six distinct
-defects, because it fails in the most instructive way software can — confidently,
-and without ever showing its reasoning. The Filter lab is its replacement, and
-glasstext's architecture is in large part a direct reaction to it: the tool that
-used to upload your text now runs under a policy that forbids it from making any
-network request at all.
+Two conventions worth knowing before submitting a change:
+
+- **Citations live in code.** Add sources to [`src/citations.js`](src/citations.js)
+  and run `npm run gen:references`; CI fails if `REFERENCES.md` is out of date.
+- **Known-wrong behaviour is pinned, not hidden.** If you find a case the
+  tokenizer or a heuristic gets wrong, a failing-by-design test that documents
+  it is a perfectly good contribution on its own.
 
 ## Licence
 
