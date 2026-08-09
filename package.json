@@ -1,0 +1,35 @@
+{
+  "name": "glasstext",
+  "version": "1.0.0",
+  "description": "A glass box for text: readability, lexical richness, and content-screening metrics computed entirely in your browser, each one showing its arithmetic, its source, and its failure mode.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./*": "./src/*"
+  },
+  "files": ["src"],
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "serve": "python3 -m http.server 8080",
+    "validate:syllables": "node tools/validate-syllables.mjs",
+    "gen:references": "node tools/gen-references.mjs"
+  },
+  "keywords": [
+    "readability",
+    "flesch-kincaid",
+    "lexical-diversity",
+    "mtld",
+    "zipf",
+    "content-moderation",
+    "scunthorpe-problem",
+    "linguistics",
+    "local-first"
+  ],
+  "license": "MIT",
+  "engines": { "node": ">=18" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/meherbejaoui/glasstext"
+  }
+}

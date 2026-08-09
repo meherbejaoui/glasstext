@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>glasstext — a glass box for text</title>
+<meta name="description" content="Readability, lexical diversity and content-screening metrics for English prose. Every number shows its arithmetic, its source, and its failure mode. Runs entirely in your browser.">
+
+<!--
+  The privacy claim on this page is enforced, not promised.
+
+  connect-src 'none' forbids fetch(), XMLHttpRequest, WebSocket and
+  EventSource. If any script on this page tried to send your text anywhere,
+  the browser would block it and log a CSP violation to the console. There is
+  no analytics, no telemetry, no font CDN and no third-party script -- check
+  the Network tab, it stays empty after load.
+-->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  connect-src 'none';
+  script-src 'self';
+  style-src 'self';
+  img-src 'self' data:;
+  font-src 'self';
+  base-uri 'none';
+  form-action 'none';
+  object-src 'none'">
+<!--
+  frame-ancestors is deliberately absent: browsers ignore it when it arrives via
+  <meta>, so including it would only produce a console warning and a false sense
+  of protection. It belongs in an HTTP header, which GitHub Pages does not let
+  us set. The page holds no credentials and no state worth clickjacking.
+-->
+
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="assets/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d6e6e'/><path d='M9 10h14M9 16h14M9 22h9' stroke='white' stroke-width='2.4' stroke-linecap='round'/></svg>">
+</head>
+<body>
+<a class="skip-link" href="#results">Skip to results</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./">
+      <strong>glasstext</strong>
+      <span class="tagline">a glass box for text</span>
+    </a>
+    <span class="privacy-badge" title="Enforced by Content-Security-Policy: connect-src 'none'">
+      ⬤ nothing leaves your browser
+    </span>
+    <nav class="nav-links">
+      <a class="btn ghost" href="learn.html">Learn</a>
+      <a class="btn ghost" href="https://github.com/meherbejaoui/glasstext">Source</a>
+      <button class="btn ghost" id="theme-toggle" type="button" aria-label="Switch colour theme">◐</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap app">
+
+  <!-- ------------------------------------------------------------ input -->
+  <section class="editor-pane panel" aria-label="Text input">
+    <div class="panel-head">
+      <h2><label for="input">Your text</label></h2>
+      <span class="spacer"></span>
+      <button class="btn" type="button" data-sample="plain">Plain</button>
+      <button class="btn" type="button" data-sample="technical">Technical</button>
+      <button class="btn" type="button" data-sample="academic">Academic</button>
+      <button class="btn" type="button" data-sample="bureaucratic">Bureaucratic</button>
+    </div>
+    <div class="panel-body">
+      <textarea id="input" spellcheck="false" autocomplete="off"
+        placeholder="Paste or type English prose here. Everything is analysed locally, as you type."
+        aria-describedby="live-counts"></textarea>
+
+      <div class="editor-actions">
+        <button class="btn" type="button" id="clear">Clear</button>
+        <button class="btn" type="button" id="copy-report">Copy report</button>
+        <label class="btn" for="file-input">Open a .txt file
+          <input type="file" id="file-input" accept=".txt,.md,text/plain" class="visually-hidden">
+        </label>
+      </div>
+
+      <div class="live-counts" id="live-counts" role="status" aria-live="polite">
+        <span><b id="c-words">0</b> words</span>
+        <span><b id="c-sentences">0</b> sentences</span>
+        <span><b id="c-chars">0</b> characters</span>
+        <span><b id="c-time">0</b> min read</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- results -->
+  <section class="panel" id="results">
+    <div class="tabs" role="tablist" aria-label="Analysis sections">
+      <button class="tab" role="tab" id="tab-readability" aria-controls="panel-readability" aria-selected="true">Readability</button>
+      <button class="tab" role="tab" id="tab-vocabulary"  aria-controls="panel-vocabulary"  aria-selected="false">Vocabulary</button>
+      <button class="tab" role="tab" id="tab-style"       aria-controls="panel-style"       aria-selected="false">Style</button>
+      <button class="tab" role="tab" id="tab-laws"        aria-controls="panel-laws"        aria-selected="false">Distribution</button>
+      <button class="tab" role="tab" id="tab-filter"      aria-controls="panel-filter"      aria-selected="false">Filter lab</button>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="panel-readability" aria-labelledby="tab-readability" tabindex="0"></div>
+    <div class="tabpanel" role="tabpanel" id="panel-vocabulary"  aria-labelledby="tab-vocabulary"  tabindex="0" hidden></div>
+    <div class="tabpanel" role="tabpanel" id="panel-style"       aria-labelledby="tab-style"       tabindex="0" hidden></div>
+    <div class="tabpanel" role="tabpanel" id="panel-laws"        aria-labelledby="tab-laws"        tabindex="0" hidden></div>
+    <div class="tabpanel" role="tabpanel" id="panel-filter"      aria-labelledby="tab-filter"      tabindex="0" hidden></div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>glasstext — measurements you can check.</span>
+    <a href="learn.html">How these numbers work</a>
+    <a href="learn.html#limits">What they cannot tell you</a>
+    <a href="https://github.com/meherbejaoui/glasstext">Source &amp; tests</a>
+    <span class="spacer"></span>
+    <span>Code MIT · Prose CC BY-SA 4.0</span>
+  </div>
+</footer>
+
+<script type="module" src="assets/app.js"></script>
+<noscript>
+  <div class="wrap">
+    <p class="note warn">glasstext runs entirely in your browser, which means it
+    needs JavaScript enabled. Nothing is sent anywhere either way.</p>
+  </div>
+</noscript>
+</body>
+</html>
