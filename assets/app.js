@@ -551,10 +551,10 @@ function renderFilter(p) {
     </li>`).join('');
 
   return `
-    <p class="section-intro">This tab is where the project started. The original program in
-    this repository sent your document to a remote API and printed “Profanity alert!”. It is
-    kept in <code>attic/</code> because it fails in the most instructive way a program can:
-    it was confidently wrong, and it never showed you why.</p>
+    <p class="section-intro">Filtering text against a list of banned words is one of the most
+    reimplemented ideas in software, and one of the most consistently broken. This tab lets you
+    run the mechanism yourself and watch it fail in both directions at once — flagging innocent
+    words while missing the ones it was built to catch.</p>
 
     <div class="mode-grid">
       <div class="mode-card bad">

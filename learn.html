@@ -206,10 +206,10 @@ on the chart, and we would rather tell you that than let you assume otherwise.</
 
 <h2 id="filters">The Scunthorpe problem: why wordlist filters never worked</h2>
 
-<p>This project began life as <code>Profanity-Check</code>, a Python script that uploaded your
-document to a third-party API and printed <em>"Profanity alert!"</em>. It is preserved in
-<code>attic/</code> because it fails in the most instructive way software can: confidently,
-and without ever showing its reasoning.</p>
+<p>Screening text against a list of banned words is among the most reimplemented ideas in
+software, and among the most reliably broken. It looks like a solved problem — search for the
+word, flag the match — and the failure only becomes visible once real people are typing into
+it.</p>
 
 <p>In 1996, AOL's filter refused to let residents of <strong>Scunthorpe</strong>, England,
 create accounts. Their town's name contains a substring the filter objected to. The bug is
@@ -329,8 +329,9 @@ rel="noopener">REFERENCES.md</a>, so a reference cannot drift out of sync with t
 depends on it. Each record marks whether we read the primary source or cross-checked the
 constants against independent implementations, and says what we actually verified.</p>
 
-<p class="footnote">glasstext is a rebuild of a small 2016 Python script that checked files for
-profanity by uploading them to a web API. The subject is the same; the epistemics are not.</p>
+<p class="footnote">Found something here that is wrong, or a source we have mischaracterised?
+That is the most useful thing you can send us —
+<a href="https://github.com/meherbejaoui/glasstext/issues" rel="noopener">open an issue</a>.</p>
 
 </main>
 
