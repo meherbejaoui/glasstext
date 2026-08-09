@@ -199,6 +199,27 @@ export function normalizeWord(w) {
  */
 export function graphemeCount(text) {
   const s = String(text);
+
+  // Fast path for pure ASCII, where every code unit is provably its own
+  // grapheme and the count is just the length.
+  //
+  // The condition is deliberately conservative rather than clever. An earlier
+  // attempt tried to detect the *interesting* characters -- surrogates,
+  // combining marks, joiners -- and got it wrong in five ways at once: under
+  // the /u flag `[\uD800-\uDFFF]` matches only *lone* surrogates, so every
+  // well-formed emoji slipped through, and CRLF (a single grapheme) was not
+  // considered at all. Enumerating everything that makes a grapheme cluster
+  // non-trivial means enumerating Hangul jamo, regional indicators, variation
+  // selectors and keycaps correctly; getting the safe set right is far easier
+  // than getting the unsafe set right.
+  //
+  // CR is excluded because "\r\n" is one grapheme, not two.
+  //
+  // This matters: Intl.Segmenter was ~40% of total analysis time on modern V8
+  // and roughly an order of magnitude worse on Node 18/20, where it made the
+  // test suite take 35s instead of 3s.
+  if (PURE_ASCII.test(s)) return s.length;
+
   if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
     let n = 0;
     for (const _ of new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(s)) n++;
@@ -206,6 +227,12 @@ export function graphemeCount(text) {
   }
   return [...s].length;
 }
+
+/**
+ * ASCII without carriage return. Within this set, grapheme clusters and code
+ * units correspond exactly, so `String.length` is the right answer.
+ */
+const PURE_ASCII = /^[\n\t\x20-\x7E]*$/;
 
 /**
  * Count letters only (no digits, spaces or punctuation). Used by Coleman-Liau

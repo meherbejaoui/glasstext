@@ -102,26 +102,44 @@ document length; measured locally:
 
 | Characters | Time |
 | ---: | ---: |
-| 22,500 | 34 ms |
-| 90,000 | 114 ms |
-| 360,000 | 457 ms |
+| 22,500 | 20 ms |
+| 90,000 | 73 ms |
+| 360,000 | 296 ms |
 
 Documents in the megabytes would want a Web Worker; nothing in the library
 prevents that, since it has no DOM dependency.
 
 ### It was not always linear
 
-Segmentation was originally O(n²). `isBoundary()` called `s.slice(0, i)` and
+Two performance bugs, both found by CI rather than by local testing.
+
+**Segmentation was O(n²).** `isBoundary()` called `s.slice(0, i)` and
 `s.slice(after)` to inspect the text around each candidate sentence terminal,
 copying the entire document once per sentence. A 180 KB document spent 2.8
-seconds inside `sentences()` alone.
+seconds inside `sentences()` alone. Replacing both slices with bounded
+character scans made a 90 KB document 6.8× faster.
 
-It was caught by a flaky CI failure rather than by the test that was supposed
-to cover it: that test asserted a wall-clock bound of 3000 ms, which fired on a
-loaded runner and said nothing about complexity. Fixing the slicing made a
-90 KB document 6.8× faster.
+**`Intl.Segmenter` dominated the rest.** `graphemeCount()` walked every
+grapheme cluster of the document to count characters. That was ~40% of total
+time on Node 22 and roughly an order of magnitude worse on Node 18 and 20,
+where it made the whole test suite take 35 seconds instead of 3. It now takes
+`String.length` directly for pure-ASCII text, where the two provably agree, and
+falls back to full segmentation otherwise.
 
-The test now asserts the *shape* of the curve — doubling the input must less
-than triple the time — which is machine-independent and actually tests the
-property that matters. The lesson is worth keeping: an absolute timing
-threshold is simultaneously flaky and blind.
+That fast path was itself wrong on the first attempt, in a way worth recording.
+It tried to detect the characters that *make* segmentation necessary —
+surrogates, combining marks, joiners — and missed five cases at once: under the
+`/u` flag, `[\uD800-\uDFFF]` matches only *lone* surrogates, so every
+well-formed emoji took the shortcut and was miscounted, and CRLF (a single
+grapheme) was not considered at all. The fix was to invert the condition:
+enumerating the safe set (ASCII without CR) is far easier to get right than
+enumerating the unsafe one, which would mean handling Hangul jamo, regional
+indicators, variation selectors and keycap sequences correctly.
+
+**On the test that was meant to catch this.** It asserted a wall-clock bound of
+3000 ms — the wrong instrument twice over, since it fired on a loaded runner
+while staying silent about the quadratic complexity it existed to guard. It now
+asserts the *shape* of the curve: doubling the input must less than triple the
+time. That is machine-independent and tests the property that actually matters.
+`graphemeCount` is separately checked for agreement between its fast and slow
+paths across emoji, combining marks, flags, skin-tone modifiers and CRLF.

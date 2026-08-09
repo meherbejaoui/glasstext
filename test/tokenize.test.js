@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sentences, words, paragraphs, normalizeWord, letterCount, segment } from '../src/tokenize.js';
+import { sentences, words, paragraphs, normalizeWord, letterCount, segment, graphemeCount } from '../src/tokenize.js';
 
 test('sentences: basic terminals', () => {
   assert.deepEqual(sentences('One. Two! Three?'), ['One.', 'Two!', 'Three?']);
@@ -97,4 +97,36 @@ test('segment: grapheme count treats an emoji sequence as one character', () => 
   // Family emoji: several code points joined by ZWJ.
   const doc = segment('👨‍👩‍👧');
   assert.equal(doc.graphemes, 1);
+});
+
+test('graphemeCount: the fast path agrees with full segmentation', () => {
+  // Plain text takes the length shortcut; everything else must fall back to
+  // Intl.Segmenter. Both branches have to produce the same answer, so compare
+  // them directly rather than trusting the shortcut.
+  const full = (s) => [...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(s)].length;
+
+  const cases = [
+    'plain ascii text',
+    '',
+    'a',
+    'tabs\tand\nnewlines',
+    'accented: café naïve',      // precomposed -- still one code unit each
+    'combining: café',      // e + combining acute -> one grapheme
+    'astral: 𝔘𝔫𝔦𝔠𝔬𝔡𝔢',
+    'emoji: 👍',
+    'zwj family: 👨‍👩‍👧',
+    'flag: 🇬🇧',
+    'skin tone: 👋🏽',
+    'mixed ascii and 👍 emoji',
+  ];
+
+  for (const s of cases) {
+    assert.equal(graphemeCount(s), full(s), `mismatch for ${JSON.stringify(s)}`);
+  }
+});
+
+test('graphemeCount: CRLF is one grapheme, not two', () => {
+  // The reason the ASCII fast path excludes carriage return.
+  assert.equal(graphemeCount('\r\n'), 1);
+  assert.equal(graphemeCount('a\r\nb'), 3);
 });
