@@ -1,4 +1,4 @@
-Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
 
 Copyright (c) 2026 Meher Bejaoui
 
@@ -11,13 +11,13 @@ licence used on https://www.meherbejaoui.com:
   - README.md
   - the explanatory text, interpretations and captions rendered by the UI
 
-Source code is licensed separately under the MIT License; see LICENSE.
+Source code is licensed separately under the GNU General Public License v3.0;
+see LICENSE.
 
 You are free to:
 
   Share — copy and redistribute the material in any medium or format
-  Adapt  — remix, transform, and build upon the material for any purpose,
-           even commercially
+  Adapt  — remix, transform, and build upon the material
 
 Under the following terms:
 
@@ -26,6 +26,8 @@ Under the following terms:
   manner, but not in any way that suggests the licensor endorses you or your
   use.
 
+  NonCommercial — You may not use the material for commercial purposes.
+
   ShareAlike — If you remix, transform, or build upon the material, you must
   distribute your contributions under the same licence as the original.
 
@@ -33,7 +35,7 @@ Under the following terms:
   measures that legally restrict others from doing anything the licence
   permits.
 
-Full licence text: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+Full licence text: https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode
 
 Note on third-party material: the CMU Pronouncing Dictionary, used only as
 validation input by tools/validate-syllables.mjs and never redistributed in

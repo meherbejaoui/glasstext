@@ -161,6 +161,6 @@ Two conventions worth knowing before submitting a change:
 
 ## Licence
 
-Code is [MIT](LICENSE). Prose — the Learn page, `docs/`, and the explanatory
-text in the UI — is [CC BY-SA 4.0](LICENSE-CONTENT), matching the licence on
+Code is [GPLv3](LICENSE). Prose — the Learn page, `docs/`, and the explanatory
+text in the UI — is [CC BY-NC-SA 4.0](LICENSE-CONTENT), matching the licence on
 [meherbejaoui.com](https://www.meherbejaoui.com).
