@@ -27,6 +27,12 @@ jobs:
 
       # No dependencies to install: the library and its tests use only
       # built-in modules and node:test.
+      #
+      # The test script passes `test/*.test.js` unquoted so the *shell* expands
+      # it. `node --test` only learned to expand glob patterns itself in Node
+      # 21, so a quoted pattern silently fails on 18 and 20 -- which is exactly
+      # what this matrix is here to catch. Test files therefore live flat in
+      # test/; a nested one would not be picked up.
       - name: Run tests
         run: npm test
 

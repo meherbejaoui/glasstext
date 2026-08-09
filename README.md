@@ -117,7 +117,7 @@ import { compareModes } from './src/screening.js';
 ## Develop
 
 ```bash
-npm test                      # 101 tests, no dependencies
+npm test                      # 101 tests, no dependencies (files live flat in test/)
 npm run serve                 # http://localhost:8080
 npm run validate:syllables    # score the counter against CMUdict
 npm run gen:references        # regenerate REFERENCES.md from src/citations.js

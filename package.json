@@ -10,7 +10,7 @@
   },
   "files": ["src"],
   "scripts": {
-    "test": "node --test \"test/**/*.test.js\"",
+    "test": "node --test test/*.test.js",
     "serve": "python3 -m http.server 8080",
     "validate:syllables": "node tools/validate-syllables.mjs",
     "gen:references": "node tools/gen-references.mjs"
