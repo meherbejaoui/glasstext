@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How these numbers work — glasstext</title>
+<meta name="description" content="What readability formulas measure, what they cannot measure, why the type-token ratio misleads, and why wordlist filters have never worked. The reasoning behind every number glasstext reports.">
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  connect-src 'none';
+  script-src 'self';
+  style-src 'self';
+  img-src 'self' data:;
+  base-uri 'none';
+  form-action 'none';
+  object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="assets/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d6e6e'/><path d='M9 10h14M9 16h14M9 22h9' stroke='white' stroke-width='2.4' stroke-linecap='round'/></svg>">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><strong>glasstext</strong>
+      <span class="tagline">a glass box for text</span></a>
+    <nav class="nav-links">
+      <a class="btn ghost" href="./">Open the tool</a>
+      <a class="btn ghost" href="https://github.com/meherbejaoui/glasstext">Source</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap prose">
+
+<h1>How these numbers work</h1>
+<p class="lede">Every measurement glasstext reports is a ratio of things it counted, run
+through an equation someone published between 1948 and 2010. This page explains what each
+one is doing, where it came from, and — the part most tools skip — the specific
+circumstances under which it will lie to you.</p>
+
+<nav aria-label="Contents">
+  <ul>
+    <li><a href="#readability">Readability: two ingredients, six recipes</a></li>
+    <li><a href="#syllables">The syllable problem, and how accurate ours is</a></li>
+    <li><a href="#diversity">Why the type-token ratio measures length</a></li>
+    <li><a href="#laws">Zipf, Heaps, and the danger of a good fit</a></li>
+    <li><a href="#filters">The Scunthorpe problem: why wordlist filters never worked</a></li>
+    <li><a href="#limits">What these numbers cannot tell you</a></li>
+    <li><a href="#using">Using this well</a></li>
+  </ul>
+</nav>
+
+<h2 id="readability">Readability: two ingredients, six recipes</h2>
+
+<p>Between the 1920s and the 1970s, researchers tried to predict how hard a passage would be
+to understand. The method was consistent: take passages, test readers on comprehension, then
+fit a regression from countable features of the text to the test scores.</p>
+
+<p>What survived is a family of formulas that share a striking property. Every one of them
+uses exactly two ingredients:</p>
+
+<ol>
+  <li><strong>A sentence-length term</strong> — words per sentence.</li>
+  <li><strong>A word-difficulty term</strong> — syllables per word, letters per word, or the
+  proportion of words with three or more syllables.</li>
+</ol>
+
+<p>That is the whole input. Flesch Reading Ease weights them one way, Flesch–Kincaid another,
+Gunning Fog a third. The Coleman–Liau index uses letters instead of syllables specifically so
+a 1975 computer could score text without a pronunciation dictionary. But the raw material is
+identical, which is why the six formulas usually agree — and why, when they disagree, it tells
+you something. A wide spread nearly always means sentence length and word length are pointing
+in opposite directions: short sentences full of long words, or long sentences of plain ones.</p>
+
+<blockquote>Because they share ingredients, agreement between formulas is not corroboration.
+Six thermometers built from the same broken sensor still agree.</blockquote>
+
+<h3>Grade levels are not grades</h3>
+
+<p>Five of the six report a "US grade level". This is a calibration artefact, not a
+measurement of schooling. Flesch–Kincaid in particular was fitted on US Navy technical manuals
+and enlisted personnel in 1975. When it prints 11.4 for your text, the honest reading is
+"about as syntactically heavy as material that tested at that level, for those readers, in
+that decade" — not "a sixteen-year-old will understand this".</p>
+
+<p>Grades above roughly 16 are extrapolation. The formulas are linear and unbounded, so a
+single 200-word sentence will happily produce a grade level of 80. That number means "your
+sentence is very long", and nothing else.</p>
+
+<h2 id="syllables">The syllable problem, and how accurate ours is</h2>
+
+<p>Four of the six formulas need a syllable count. English spelling does not determine one.
+<em>Wind</em> is one syllable; <em>winded</em> is two. <em>Fire</em>, <em>hour</em> and
+<em>real</em> are argued over by native speakers. Every readability tool you have used
+contains a heuristic here, and almost none of them tell you how good it is.</p>
+
+<p>Ours is a rule-based counter: vowel-group counting, plus rules for silent terminal <em>e</em>,
+syllabic <em>l</em> and <em>r</em>, the <em>-tion</em> family, vowel hiatus, and syllabic
+consonants in <em>rhythm</em> and <em>prism</em>. Each rule was added in response to a
+measured error cluster, not a hunch.</p>
+
+<p>We scored it against the <strong>CMU Pronouncing Dictionary</strong>, where the ground truth
+is the number of stress-bearing vowel phonemes in the recorded pronunciation:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Measure</th><th class="num">Result</th></tr></thead>
+  <tbody>
+    <tr><td>Words scored</td><td class="num">117,486</td></tr>
+    <tr><td>Exact match</td><td class="num">91.98%</td></tr>
+    <tr><td>Within ±1 syllable</td><td class="num">99.77%</td></tr>
+    <tr><td>Mean absolute error</td><td class="num">0.083</td></tr>
+    <tr><td>Mean signed error</td><td class="num">−0.023</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Two caveats we would rather state than have you discover. First, CMUdict is a
+speech-recognition dictionary heavy with proper nouns and surnames, which are harder than
+ordinary vocabulary — so this figure is pessimistic for normal prose. Second, the residual
+error is not random: the counter is very slightly biased low, so texts full of long words get
+readability scores fractionally kinder than they deserve.</p>
+
+<p>You can reproduce all of it: <code>npm run validate:syllables</code>.</p>
+
+<h3>Does anyone else get the same answers?</h3>
+
+<p>We cross-check the whole pipeline against <a href="https://github.com/textstat/textstat"
+rel="noopener">textstat</a>, an independent Python implementation. On our sample texts, word
+and sentence counts match exactly, and the scores agree to within about a grade:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Formula</th><th class="num">Mean absolute difference</th></tr></thead>
+  <tbody>
+    <tr><td>Flesch–Kincaid Grade</td><td class="num">0.26</td></tr>
+    <tr><td>SMOG</td><td class="num">0.25</td></tr>
+    <tr><td>Coleman–Liau</td><td class="num">0.44</td></tr>
+    <tr><td>Automated Readability Index</td><td class="num">0.52</td></tr>
+    <tr><td>Gunning Fog</td><td class="num">0.70</td></tr>
+    <tr><td>Flesch Reading Ease</td><td class="num">1.84</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>The residual gaps are syllable-counting and character-counting differences, not
+disagreements about the formulas. Flesch Reading Ease shows the largest gap because it
+multiplies syllables-per-word by 84.6, amplifying any difference. This is worth internalising
+generally: <strong>when two readability tools disagree, it is almost never the equation. It is
+the tokenizer.</strong></p>
+
+<h2 id="diversity">Why the type-token ratio measures length</h2>
+
+<p>The obvious way to measure vocabulary richness is the type-token ratio: distinct words
+divided by total words. It is also close to useless for comparing texts, and the reason is
+structural rather than fixable.</p>
+
+<p>Function words — <em>the</em>, <em>of</em>, <em>and</em>, <em>to</em> — recur no matter how
+inventive the writing is. As a text lengthens, the denominator grows steadily while the
+numerator grows ever more slowly. So TTR falls with length for <em>every</em> text ever
+written. Compare a 200-word note with a 5,000-word essay by the same author and you will
+"discover" that the note has a richer vocabulary.</p>
+
+<p>The <a href="./">Distribution tab</a> draws this directly as Heaps' law. The vocabulary
+growth curve bends; TTR is just that curve's height divided by its horizontal position; a
+bending curve guarantees a falling ratio.</p>
+
+<h3>The two standard fixes</h3>
+
+<p><strong>MATTR</strong> (Covington &amp; McFall, 2010) holds the window fixed: compute TTR
+over every window of 50 consecutive words and average. Because all windows are the same
+length, length cancels out, and a long text becomes directly comparable to a short one.</p>
+
+<p><strong>MTLD</strong> (McCarthy &amp; Jarvis, 2010) inverts the question. Instead of asking
+"what is the ratio at this length?", it asks "how many words does it take for the ratio to
+fall to 0.720?" It reads forward counting that run, resets, repeats, then does the whole thing
+backwards and averages. Richer text sustains longer runs. The 0.720 threshold is empirical —
+it is where TTR curves flatten out.</p>
+
+<p>Neither is magic. MTLD is unstable below about 100 words, and both measure <em>surface
+forms</em>: <em>run</em> and <em>running</em> count as two different words, because none of
+this involves a lemmatizer. glasstext says so on the panel rather than in a footnote.</p>
+
+<h2 id="laws">Zipf, Heaps, and the danger of a good fit</h2>
+
+<p>Rank the words of almost any text by frequency, plot rank against frequency on log-log
+axes, and you get a straight line with a slope near −1. This is Zipf's law, and it is
+genuinely remarkable that it holds across languages, authors, and centuries.</p>
+
+<p>It is also much weaker evidence than it appears. Piantadosi's 2014 review shows that a very
+wide class of processes produce Zipf-like distributions, including a monkey typing randomly on
+a keyboard with a space bar. A good Zipf fit tells you a text has the statistical shape of
+running prose. It tells you nothing about whether the text means anything.</p>
+
+<p>We show it anyway, for two honest reasons. It makes the vocabulary numbers on the previous
+tab intuitive rather than abstract; and a <em>badly broken</em> fit is genuinely diagnostic —
+word lists, tables, and heavily templated text visibly leave the line.</p>
+
+<p>One disclosure about our own method: we fit by least squares in log-log space. This is the
+standard quick approach and it is statistically sloppy, because it weights the long noisy tail
+of once-occurring words as heavily as the well-estimated head. Maximum-likelihood estimation
+would be more defensible. We use the log-log fit because it is the line you can actually see
+on the chart, and we would rather tell you that than let you assume otherwise.</p>
+
+<h2 id="filters">The Scunthorpe problem: why wordlist filters never worked</h2>
+
+<p>This project began life as <code>Profanity-Check</code>, a Python script that uploaded your
+document to a third-party API and printed <em>"Profanity alert!"</em>. It is preserved in
+<code>attic/</code> because it fails in the most instructive way software can: confidently,
+and without ever showing its reasoning.</p>
+
+<p>In 1996, AOL's filter refused to let residents of <strong>Scunthorpe</strong>, England,
+create accounts. Their town's name contains a substring the filter objected to. The bug is
+named after them, and it has been reshipped continuously ever since — by Yahoo, by academic
+paper submission systems, by comment platforms.</p>
+
+<p>The <a href="./#filter">Filter lab</a> lets you run the mechanism yourself. The demonstration
+list contains only ordinary English words — <code>hell</code>, <code>ass</code>,
+<code>anal</code>, <code>sex</code>, <code>cum</code> — chosen precisely because they are the
+documented causes of famous over-blocking. glasstext ships no profanity list; the mechanism and
+its failure modes are identical whatever words you put in.</p>
+
+<p>What you will find is a trap with three corners, and you cannot occupy more than one:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Approach</th><th>Catches evasion?</th><th>False positives</th></tr></thead>
+  <tbody>
+    <tr><td>Substring matching</td><td>Some</td><td><strong>Catastrophic</strong> — <em>class</em>, <em>analysis</em>, <em>document</em>, <em>Sussex</em></td></tr>
+    <tr><td>Whole-word matching</td><td><strong>No</strong> — <code>h3ll</code>, <code>h e l l</code>, Cyrillic <code>һеӏӏ</code></td><td>None</td></tr>
+    <tr><td>Normalise, then match</td><td>Most</td><td>Some return, by construction</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>The normalisation pipeline is worth understanding because it generalises far beyond
+profanity — it is the same machinery you need for search, deduplication, and username
+uniqueness. Order matters: strip invisible characters first or they block every later rule;
+apply Unicode NFKC to fold compatibility forms; fold homoglyphs <em>deliberately</em>, because
+Cyrillic <code>а</code> (U+0430) is a genuinely different letter from Latin <code>a</code> and
+Unicode will never fold it for you; then do the lossy steps last.</p>
+
+<h3>Machine learning does not dissolve the problem</h3>
+
+<p>The natural response is "use a classifier instead". Two findings should temper that:</p>
+
+<ul>
+  <li>Hosseini et al. (2017) defeated Google's production Perspective API with
+  <strong>typos</strong>. Character-level noise that a human reads through without noticing
+  collapsed the model's confidence.</li>
+  <li>Sap et al. (2019) found that hate-speech classifiers flag African-American English at
+  substantially higher rates. A filter deployed naively does not moderate neutrally; it
+  penalises hardest the people already moderated most.</li>
+</ul>
+
+<p>This is why glasstext's screening panel returns matches and never a verdict. Matching is
+the easy, mechanical part. Deciding what to do about a match is a policy question that needs a
+human, a context, and an appeals process — as Gorwa et al. (2020) argue at length.</p>
+
+<h2 id="limits">What these numbers cannot tell you</h2>
+
+<p>A short list, stated plainly, because a measurement tool that oversells itself does more
+damage than no tool at all.</p>
+
+<ul>
+  <li><strong>They cannot see word order.</strong> Shuffle a sentence into nonsense and every
+  readability score stays identical. Try it — the tool suggests exactly this experiment. The
+  formulas measure surface form, not meaning, and this is the cleanest demonstration of it.</li>
+
+  <li><strong>They cannot see whether you know the words.</strong> <em>Cat</em> and
+  <em>cusp</em> are both one syllable. A cardiologist reads a cardiology paper faster than a
+  novel. Domain knowledge dominates, and no formula here can access it.</li>
+
+  <li><strong>They cannot see cohesion.</strong> Two paragraphs with identical scores can
+  differ entirely in whether each sentence connects to the last. This is most of what makes
+  writing followable, and it is invisible to every formula on this page.</li>
+
+  <li><strong>Optimising them can make writing worse.</strong> This is the important one.
+  Because the formulas reward short words and short sentences, you can improve a score by
+  replacing a precise technical term with a vague common one, or by chopping a sentence whose
+  clauses explained their own relationship. DuBay (2004) and Bailin &amp; Grafstein (2016)
+  both document this. <strong>The score is a symptom, not a target.</strong> Treat a bad score
+  as a prompt to reread, never as a specification to satisfy.</li>
+
+  <li><strong>Style panels are pattern matches, not grammar.</strong> Real passive detection
+  needs a part-of-speech tagger, and even then <em>"the door was locked"</em> is ambiguous.
+  We flag <em>candidates</em>, and we pin our known false positives in the test suite so they
+  are documented rather than hidden.</li>
+
+  <li><strong>The passive voice is not an error.</strong> Williams (1981) defends it whenever
+  it puts familiar information first — <em>"the vaccine was developed in 1955"</em> is better
+  than leading with a laboratory nobody has heard of. A tool that reports passives as mistakes
+  teaches a superstition.</li>
+
+  <li><strong>English only.</strong> Every formula, the syllable counter, and the sentence
+  splitter are English-specific. The word counter is Unicode-aware and will happily tokenize
+  other scripts, which means glasstext will produce confident, meaningless numbers for text it
+  cannot actually analyse. Do not trust it outside English.</li>
+</ul>
+
+<h2 id="using">Using this well</h2>
+
+<p>A workflow that respects the limits above:</p>
+
+<ol>
+  <li><strong>Look at the longest sentence first.</strong> It is on the Style tab. This single
+  number does more for prose than any score.</li>
+  <li><strong>Read the spread, not the average.</strong> Uniform sentence lengths read as flat
+  regardless of the grade level. Readability formulas use only the mean and are blind to this
+  entirely.</li>
+  <li><strong>Use the grade range as a smoke alarm.</strong> If your six formulas cluster
+  around 9 and your audience is a general one, fine. If they cluster around 19, something is
+  genuinely heavy — go and look at what.</li>
+  <li><strong>Check nominalisations when a sentence feels sluggish.</strong> Williams' test: if
+  the real action of the sentence is trapped inside a noun like <em>implementation</em>, turning
+  it back into a verb usually shortens the sentence and sharpens it.</li>
+  <li><strong>Never rewrite to hit a number.</strong> See above. Repeatedly.</li>
+</ol>
+
+<h2>Sources</h2>
+
+<p>Every citation is stored in one place —
+<a href="https://github.com/meherbejaoui/glasstext/blob/main/src/citations.js"
+rel="noopener"><code>src/citations.js</code></a> — and rendered from there into both this site
+and <a href="https://github.com/meherbejaoui/glasstext/blob/main/REFERENCES.md"
+rel="noopener">REFERENCES.md</a>, so a reference cannot drift out of sync with the code that
+depends on it. Each record marks whether we read the primary source or cross-checked the
+constants against independent implementations, and says what we actually verified.</p>
+
+<p class="footnote">glasstext is a rebuild of a small 2016 Python script that checked files for
+profanity by uploading them to a web API. The subject is the same; the epistemics are not.</p>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <a href="./">← Back to the tool</a>
+    <span class="spacer"></span>
+    <span>Code MIT · Prose CC BY-SA 4.0</span>
+  </div>
+</footer>
+
+</body>
+</html>

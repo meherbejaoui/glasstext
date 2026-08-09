@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 18 is the floor declared in package.json; 22 is current LTS.
+        node: ['18', '20', '22']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # No dependencies to install: the library and its tests use only
+      # built-in modules and node:test.
+      - name: Run tests
+        run: npm test
+
+  consistency:
+    name: Generated files are current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # REFERENCES.md is rendered from src/citations.js. If someone edits a
+      # citation without regenerating, the docs silently drift from the code.
+      - name: REFERENCES.md matches src/citations.js
+        run: node tools/gen-references.mjs --check
+
+  cross-check:
+    name: Cross-check formulas against textstat
+    runs-on: ubuntu-latest
+    continue-on-error: true # informational: an upstream release should not block a merge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install textstat
+        run: pip install textstat
+
+      - name: Compare against an independent implementation
+        run: node tools/cross-check.mjs
+
+  validate-syllables:
+    name: Score syllable counter against full CMUdict
+    runs-on: ubuntu-latest
+    continue-on-error: true # needs network; the committed sample is the gate in `npm test`
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Download CMUdict and score
+        run: node tools/validate-syllables.mjs --errors 20
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: syllable-report
+          path: tools/.cache/syllable-report.json
+          if-no-files-found: warn
