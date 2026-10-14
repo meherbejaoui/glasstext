@@ -13,7 +13,7 @@
 
 import { analyze } from '../src/analyze.js';
 import { CITATIONS, formatCitation } from '../src/citations.js';
-import { screen, normalize, evasions, DEMO_TERMS, COLLATERAL } from '../src/screening.js';
+import { screen, normalize, evasionReport, SCREEN_NORMALIZE, DEMO_TERMS, COLLATERAL } from '../src/screening.js';
 import { words as wordsOf } from '../src/tokenize.js';
 import { SAMPLES, SAMPLE_ORDER } from './samples.js';
 
@@ -78,7 +78,7 @@ function citationHtml(id) {
  *          xLabel: string, yLabel: string, width?: number, height?: number}} cfg
  * @returns {string} SVG markup
  */
-function scatterSvg({ points, fit, xLabel, yLabel, width = 560, height = 260 }) {
+function scatterSvg({ points, fit, fitX1, xLabel, yLabel, width = 560, height = 260 }) {
   if (!points.length) return '';
   const pad = { l: 46, r: 14, t: 12, b: 34 };
   const w = width - pad.l - pad.r;
@@ -100,9 +100,11 @@ function scatterSvg({ points, fit, xLabel, yLabel, width = 560, height = 260 }) 
 
   let fitLine = '';
   if (fit) {
+    // Drawn only across the ranks that were fitted, not extrapolated over the tail.
+    const xEnd = fitX1 ?? x1;
     const fy0 = fit.slope * x0 + fit.intercept;
-    const fy1 = fit.slope * x1 + fit.intercept;
-    fitLine = `<line class="fit" x1="${sx(x0)}" y1="${sy(fy0)}" x2="${sx(x1)}" y2="${sy(fy1)}"/>`;
+    const fy1 = fit.slope * xEnd + fit.intercept;
+    fitLine = `<line class="fit" x1="${sx(x0)}" y1="${sy(fy0)}" x2="${sx(xEnd)}" y2="${sy(fy1)}"/>`;
   }
 
   const ticks = (lo, hi, n = 4) =>
@@ -261,6 +263,9 @@ function renderReadability(p) {
       <div class="stat"><span class="value">${basis.lettersPerWord}</span><span class="label">letters / word</span></div>
     </div>
 
+    ${basis.numeralsOnly ? `<div class="note warn">This text contains only numbers (${basis.numerals}).
+    The formulas measure the syllables and letters of words, so none of them has anything to
+    score.</div>` : ''}
     ${consensusHtml}
     ${cards}
 
@@ -424,7 +429,7 @@ function renderLaws(p) {
     <h3>Zipf's law — rank against frequency</h3>
     <div class="chart-wrap">
       ${z.points.length ? scatterSvg({
-        points: z.points, fit,
+        points: z.points, fit, fitX1: Math.log10(z.fitMaxRank || 1),
         xLabel: 'log₁₀ rank', yLabel: 'log₁₀ frequency',
       }) : '<p class="footnote">Not enough distinct words to plot.</p>'}
       <p class="chart-caption">
@@ -443,9 +448,12 @@ function renderLaws(p) {
         read as evidence of deep structure in language. Piantadosi's review shows that many
         processes with no linguistic content generate the same distribution, so the fit alone
         cannot distinguish prose from a well-shaped random string.</p>
-        <p>We also fit by least squares in log-log space, which over-weights the noisy tail of
-        once-occurring words. It is the fit you can see on the chart, not the most defensible
-        estimator.</p>
+        <p>We also fit by least squares in log-log space, which is the fit you can see on the
+        chart but not the most defensible estimator. Clauset et al. recommend maximum
+        likelihood. To blunt the worst of it we leave out words that occur only once: they form
+        a plateau of ties that distorts the slope, and in a short text they are most of the
+        points. The line is drawn only across the ranks that were fitted.</p>
+        ${citationHtml('clauset2009')}
         ${citationHtml('zipf1949')}
         ${citationHtml('piantadosi2014')}
       </div>
@@ -532,18 +540,24 @@ function renderFilter(p) {
     </tr>`).join('');
 
   const probe = filterState.probe || 'hello';
-  const evasionRows = evasions(probe).map((e) => {
-    const w = screen(e.text, { terms: [probe], mode: 'word' }).matches.length > 0;
-    const n = screen(e.text, { terms: [probe], mode: 'normalized' }).matches.length > 0;
-    return `<tr>
+  // Scored inside a sentence, exactly as the test suite does, not standalone.
+  const FAMILY_LABEL = {
+    'designed-for': 'Techniques the pipeline was built to undo',
+    independent: 'Techniques it was not built for',
+  };
+  let lastFamily = '';
+  const evasionRows = evasionReport(probe).map((e) => {
+    const heading = e.family === lastFamily ? '' : `<tr class="family-row"><td colspan="4">${esc(FAMILY_LABEL[e.family])}</td></tr>`;
+    lastFamily = e.family;
+    return `${heading}<tr>
       <td>${esc(e.technique)}</td>
       <td><code>${esc(e.text)}</code></td>
-      <td class="num">${w ? '✅' : '❌'}</td>
-      <td class="num">${n ? '✅' : '❌'}</td>
+      <td class="num">${e.word ? '✅' : '❌'}</td>
+      <td class="num">${e.normalized ? '✅' : '❌'}</td>
     </tr>`;
   }).join('');
 
-  const pipeline = normalize(probe === 'hello' ? 'Ｈ３𝘭l0  w०rld' : probe).steps
+  const pipeline = normalize(probe === 'hello' ? 'Ｈ３𝘭l0  w०rld' : probe, SCREEN_NORMALIZE).steps
     .map((s, i) => `<li class="${s.changed ? 'changed' : ''}">
       <span class="step-no">${i + 1}</span>
       <span><span class="step-name">${esc(s.name)}</span><br>
@@ -620,18 +634,26 @@ function renderFilter(p) {
       <thead><tr><th>Technique</th><th>Input</th><th class="num">Whole word</th><th class="num">Normalised</th></tr></thead>
       <tbody>${evasionRows}</tbody>
     </table></div>
-    <p class="footnote">✅ = caught, ❌ = slipped through. Every one of these techniques is
-    decades old, and a filter's users find them within hours of deployment.
-    The Cyrillic row looks identical to the plain word on purpose — that is the whole
-    attack. Those characters are U+0430, U+0435, U+043E and friends, which are different
-    letters that happen to share a glyph, so no amount of Unicode normalisation will fold
-    them for you. You have to do it deliberately.</p>
+    <p class="footnote">✅ = caught, ❌ = slipped through, each scored inside a sentence.
+    The first group is decades old and is what the normalisation pipeline was written to
+    undo, so catching it mostly shows the pipeline is consistent with itself. The second
+    group is the real test: single-letter typos and lookalike letters that the folding
+    table does not list. Nothing catches those, and a fuzzy matcher that did would start
+    flagging innocent words. The Cyrillic row looks identical to the plain word on purpose —
+    those characters are U+0430, U+0435, U+043E and friends, which are different letters
+    that happen to share a glyph, so no amount of Unicode normalisation will fold them for
+    you. You have to do it deliberately, and no table of them is ever complete.</p>
 
     <h3>The normalisation pipeline, stage by stage</h3>
     <ul class="pipeline">${pipeline}</ul>
     <p class="footnote">Highlighted rows changed the string. Order matters: strip invisible
-    characters first or they block every later rule; leave the lossy steps
-    (leetspeak, letter-collapsing) until last.</p>
+    characters first or they block every later rule; leave the lossy leetspeak step until
+    last. Two lossy decisions are deliberately left to the matcher rather than made here.
+    A symbol at the edge of a word (<code>hell!</code>, <code>a$$</code>) could be
+    punctuation or a letter, so it is kept and read both ways at match time. A repeated
+    letter (<code>hellll</code>) is not collapsed, because collapsing it to
+    <code>hel</code> would hide the very word it was meant to reveal; instead each run of
+    letters in a term matches that many or more.</p>
     ${citationHtml('unicodeTr39')}
     ${citationHtml('unicodeTr15')}
 

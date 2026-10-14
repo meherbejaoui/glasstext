@@ -13,9 +13,23 @@
  * are useful as a *rewrite signal* ("this sentence is 60 words long") and
  * misleading as a *target* (shortening words to hit a grade level can make
  * prose worse -- see Bailin & Grafstein 2016, DuBay 2004).
+ *
+ * Numerals. A token like "2026" is a word for the purpose of sentence length
+ * but has no syllables and no letters. Scoring it as a word with zero of each
+ * lets an average be dragged down by tokens the instrument cannot measure:
+ * adding numbers to a sentence made Flesch Reading Ease rise (read easier) and
+ * Coleman-Liau fall, while the sentence got longer. The rule used here is that
+ * a missing measurement is missing, not zero: every per-word ratio is taken
+ * over the words that have the property (numerator and denominator over the
+ * same tokens), and every per-sentence ratio over all tokens. ARI is the
+ * exception that follows the same rule, because digits *are* characters and
+ * ARI counts characters. The alternative, counting numerals by how they are
+ * spoken, needs a reading ("2026" is five syllables as a year and six as a
+ * cardinal) that the text does not contain. See docs/limits.md.
  */
 
-import { totalSyllables, polysyllableCount } from './syllables.js';
+import { totalSyllables, polysyllableCount, complexWordCount } from './syllables.js';
+import { isNumeral } from './tokenize.js';
 
 /**
  * @typedef {object} Term
@@ -87,18 +101,37 @@ export function readability(doc) {
   const W = doc.wordCount;
   const S = doc.sentenceCount;
   const L = doc.letters;
+  const N = doc.numerals ?? 0;
+  // Words that have letters, and so syllables: the denominator of every
+  // per-word property. W still measures sentence length.
+  const Wa = W - N;
 
   if (W === 0 || S === 0) {
     return { metrics: [], basis: { words: W, sentences: S, empty: true } };
   }
 
-  const syl = totalSyllables(doc.words);
-  const poly = polysyllableCount(doc.words);
+  if (Wa === 0) {
+    // Nothing but numerals: no formula that measures words has anything to say.
+    return {
+      metrics: [],
+      basis: {
+        words: W, sentences: S, numerals: N, alphabeticWords: 0, syllables: 0, letters: L,
+        polysyllables: 0, wordsPerSentence: r(W / S), syllablesPerWord: 0, lettersPerWord: 0,
+        percentPolysyllabic: 0, empty: false, numeralsOnly: true,
+      },
+    };
+  }
+
+  const alphabetic = N === 0 ? doc.words : doc.words.filter((w) => !isNumeral(w));
+  const syl = totalSyllables(alphabetic);
+  const poly = polysyllableCount(alphabetic);
+  const complex = complexWordCount(alphabetic);
 
   const wordsPerSentence = W / S;
-  const syllablesPerWord = syl / W;
-  const lettersPerWord = L / W;
-  const pctPoly = (poly / W) * 100;
+  const syllablesPerWord = syl / Wa;
+  const lettersPerWord = L / Wa;
+  const pctPoly = (poly / Wa) * 100;
+  const pctComplex = (complex / Wa) * 100;
 
   // Formulas fitted on passages of a few hundred words behave erratically on
   // fragments. This is a statement about sample size, not about the text.
@@ -106,23 +139,41 @@ export function readability(doc) {
     ? 'Fewer than 100 words. These formulas were fitted on passages of several hundred words; treat this score as indicative only.'
     : undefined;
 
+  // Said once, on the formulas whose per-word terms had to leave numerals out.
+  const numeralNote = N > 0
+    ? `${N} numeric token${N === 1 ? '' : 's'} (digits, no letters) ${N === 1 ? 'is' : 'are'} counted as ` +
+      `${N === 1 ? 'a word' : 'words'} for sentence length but left out of the per-word terms, because a ` +
+      'numeral has no syllables or letters to measure. Counting it as a word with none would make the ' +
+      'score read easier the more numbers the text contains.'
+    : undefined;
+  const warn = (...parts) => parts.filter(Boolean).join(' ') || undefined;
+
   const basis = {
     words: W,
+    numerals: N,
+    alphabeticWords: Wa,
     sentences: S,
     syllables: syl,
     letters: L,
     polysyllables: poly,
+    complexWords: complex,
     wordsPerSentence: r(wordsPerSentence),
     syllablesPerWord: r(syllablesPerWord, 3),
     lettersPerWord: r(lettersPerWord, 3),
     percentPolysyllabic: r(pctPoly),
+    percentComplex: r(pctComplex),
   };
 
   const terms = {
     wps: { label: 'words per sentence', value: r(wordsPerSentence), detail: `${W} / ${S}` },
-    spw: { label: 'syllables per word', value: r(syllablesPerWord, 3), detail: `${syl} / ${W}` },
-    lpw: { label: 'letters per word', value: r(lettersPerWord, 3), detail: `${L} / ${W}` },
-    poly: { label: '% words of 3+ syllables', value: r(pctPoly), detail: `${poly} / ${W}` },
+    spw: { label: 'syllables per word', value: r(syllablesPerWord, 3), detail: `${syl} / ${Wa}` },
+    lpw: { label: 'letters per word', value: r(lettersPerWord, 3), detail: `${L} / ${Wa}` },
+    poly: { label: '% words of 3+ syllables', value: r(pctPoly), detail: `${poly} / ${Wa}` },
+    complex: {
+      label: '% complex words (3+ syllables, minus -ed/-es/-ing forms)',
+      value: r(pctComplex),
+      detail: `${complex} / ${Wa}`,
+    },
   };
 
   /** @type {Metric[]} */
@@ -140,7 +191,7 @@ export function readability(doc) {
     terms: [terms.wps, terms.spw],
     citationId: 'flesch1948',
     interpretation: easeText(fre),
-    warning: shortText,
+    warning: warn(shortText, numeralNote),
   });
 
   // --- Flesch-Kincaid Grade Level (Kincaid et al. 1975) --------------------
@@ -155,22 +206,22 @@ export function readability(doc) {
     terms: [terms.wps, terms.spw],
     citationId: 'kincaid1975',
     interpretation: gradeText(fkg),
-    warning: shortText,
+    warning: warn(shortText, numeralNote),
   });
 
   // --- Gunning Fog (Gunning 1952) -----------------------------------------
-  const fog = 0.4 * (wordsPerSentence + pctPoly);
+  const fog = 0.4 * (wordsPerSentence + pctComplex);
   metrics.push({
     id: 'gunning-fog',
     name: 'Gunning Fog Index',
     value: r(fog, 1),
     unit: 'grade',
     expression: '0.4 × [ (words/sentences) + 100 × (complex words/words) ]',
-    substituted: `0.4 × ( ${r(wordsPerSentence)} + ${r(pctPoly)} )`,
-    terms: [terms.wps, terms.poly],
+    substituted: `0.4 × ( ${r(wordsPerSentence)} + ${r(pctComplex)} )`,
+    terms: [terms.wps, terms.complex],
     citationId: 'gunning1952',
-    interpretation: `${gradeText(fog)} Runs slightly high here: we count every 3+ syllable word, where Gunning excluded proper nouns and inflected forms.`,
-    warning: shortText,
+    interpretation: `${gradeText(fog)} Complex words follow Gunning's exclusion for -ed/-es/-ing forms; his exclusions for proper nouns and familiar compounds need a name list and a familiarity list we do not have, so this still runs slightly high on name-heavy text.`,
+    warning: warn(shortText, numeralNote),
   });
 
   // --- SMOG (McLaughlin 1969) ---------------------------------------------
@@ -205,12 +256,12 @@ export function readability(doc) {
     expression: '0.0588 × L − 0.296 × S − 15.8   (L = letters per 100 words, S = sentences per 100 words)',
     substituted: `0.0588 × ${r(lPer100)} − 0.296 × ${r(sPer100)} − 15.8`,
     terms: [
-      { label: 'letters per 100 words', value: r(lPer100), detail: `${L} / ${W} × 100` },
+      { label: 'letters per 100 words', value: r(lPer100), detail: `${L} / ${Wa} × 100` },
       { label: 'sentences per 100 words', value: r(sPer100), detail: `${S} / ${W} × 100` },
     ],
     citationId: 'coleman1975',
     interpretation: `${gradeText(cli)} Uses letters instead of syllables, so it is immune to syllable-counting error -- a useful cross-check on the four formulas above.`,
-    warning: shortText,
+    warning: warn(shortText, numeralNote),
   });
 
   // --- Automated Readability Index (Senter & Smith 1967) -------------------

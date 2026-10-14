@@ -36,6 +36,7 @@ export function analyze(text, opts = {}) {
       charactersNoSpaces: doc.graphemes - (doc.text.match(/\s/g) ?? []).length,
       letters: doc.letters,
       words: doc.wordCount,
+      numerals: doc.numerals,
       sentences: doc.sentenceCount,
       paragraphs: doc.paragraphs.length,
       types: lex.types,

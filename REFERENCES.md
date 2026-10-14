@@ -6,7 +6,7 @@ Every source behind a number that glasstext reports. Each entry records
 whether we read the primary source or verified the values another way, and
 what specifically was checked.
 
-22 sources, 6 read directly.
+23 sources, 6 read directly.
 
 | Key | Source | Verified |
 | --- | --- | --- |
@@ -21,6 +21,7 @@ what specifically was checked.
 | `heaps1978` | Heaps, H. S. (1978). Information Retrieval: Computational and Theoretical Aspects. *Academic Press*. | cross-checked |
 | `williams1981` | Williams, J. M. (1981). Style: Ten Lessons in Clarity and Grace. *Scott, Foresman*. | cross-checked |
 | `dubay2004` | DuBay, W. H. (2004). The Principles of Readability. *Impact Information*. | cross-checked |
+| `clauset2009` | Clauset, A., Shalizi, C. R., & Newman, M. E. J. (2009). [Power-law distributions in empirical data](https://doi.org/10.1137/070710111). *SIAM Review*, 51(4), 661-703. | cross-checked |
 | `covington2010` | Covington, M. A., & McFall, J. D. (2010). Cutting the Gordian knot: The moving-average type-token ratio (MATTR). *Journal of Quantitative Linguistics*, 17(2), 94-100. | cross-checked |
 | `mccarthy2010` | McCarthy, P. M., & Jarvis, S. (2010). MTLD, vocd-D, and HD-D: A validation study of sophisticated approaches to lexical diversity assessment. *Behavior Research Methods*, 42(2), 381-392. | cross-checked |
 | `cmudict` | Carnegie Mellon University Speech Group (2014). [The CMU Pronouncing Dictionary (cmudict 0.7b)](https://github.com/cmusphinx/cmudict). *Carnegie Mellon University*. | source read |
@@ -51,7 +52,7 @@ Rank-frequency law. Later work (notably Piantadosi 2014) shows the law is weaker
 
 **The Technique of Clear Writing**
 
-Gunning excludes proper nouns, familiar compound words, and words made polysyllabic only by inflection. This implementation applies none of those exclusions, so our Fog runs slightly high. See docs/limits.md.
+Gunning excludes proper nouns, familiar compound words, and words made three syllables only by an -ed/-es/-ing inflection. This implementation approximates the third exclusion (see complexWordCount in src/syllables.js) and applies neither of the others, so our Fog still runs slightly high on name-heavy text. See docs/limits.md.
 
 ### Herdan, G. (1960)
 
@@ -100,6 +101,12 @@ Source of the character/action principle behind the nominalisation and passive-v
 **The Principles of Readability**
 
 Survey of the readability literature; the standard source for the observation that these formulas correlate with comprehension but do not measure it, and that rewriting to hit a score can hurt the reader.
+
+### Clauset, A., Shalizi, C. R., & Newman, M. E. J. (2009)
+
+**Power-law distributions in empirical data**
+
+Cited for two recommendations: fit a power law only above a minimum value rather than over the whole range, and prefer maximum likelihood to least squares on a log-log plot. We follow the first (zipf() leaves out words occurring once) and not the second. The original was not read directly in building this project.
 
 ### Covington, M. A., & McFall, J. D. (2010)
 

@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { screen, normalize, compareModes, evasions, DEMO_TERMS, COLLATERAL } from '../src/screening.js';
+import {
+  screen, normalize, compareModes, evasions, evasionReport,
+  DEMO_TERMS, COLLATERAL, CONFUSABLES, UNLISTED_LOOKALIKES, SCREEN_NORMALIZE,
+} from '../src/screening.js';
 
 /**
  * The Scunthorpe problem, as an executable claim rather than an anecdote.
@@ -46,14 +49,113 @@ test('whole-word matching loses to trivial evasion', () => {
   }
 });
 
-test('normalisation catches most of those evasions', () => {
-  const caught = [];
-  const missed = [];
-  for (const { technique, text } of evasions('hell')) {
-    const res = screen(`you are ${text} today`, { mode: 'normalized', terms: ['hell'] });
-    (res.matches.length > 0 ? caught : missed).push(technique);
+test('every evasion really changes the term it evades', () => {
+  for (const term of DEMO_TERMS) {
+    for (const e of evasions(term)) {
+      assert.notEqual(e.text, term, `${e.technique} of "${term}" must not be the plain term`);
+    }
   }
-  assert.ok(caught.length >= 5, `expected most techniques caught, got ${caught.join(', ')}`);
+});
+
+/**
+ * Evasions are scored inside a sentence. Scored standalone, spaced and dotted
+ * evasions look caught; embedded, the pipeline used to weld them to their
+ * neighbours ("you arehelltoday") and miss them. The previous version of this
+ * test asserted only `caught.length >= 5` and hid exactly that.
+ */
+test('normalisation catches every evasion its stages were written for, in context', () => {
+  for (const term of DEMO_TERMS) {
+    for (const e of evasionReport(term).filter((x) => x.family === 'designed-for')) {
+      assert.equal(e.normalized, true, `"${e.text}" (${e.technique}) should be caught for "${term}"`);
+      assert.equal(e.word, false, `"${e.text}" (${e.technique}) should slip past whole-word matching`);
+    }
+  }
+});
+
+/**
+ * The honest half of the demo. Nothing in the pipeline was written for these,
+ * and neither mode catches them. Pinned so that adding fuzzy matching, or
+ * extending the lookalike table, shows up here as a deliberate change.
+ */
+test('normalisation does not catch independent evasions: typos and unlisted lookalikes', () => {
+  for (const term of DEMO_TERMS) {
+    const independent = evasionReport(term).filter((x) => x.family === 'independent');
+    assert.ok(independent.length >= 3, `${term} should have the three independent techniques`);
+    for (const e of independent) {
+      assert.equal(e.word, false, `${e.technique} "${e.text}" vs whole-word`);
+      assert.equal(e.normalized, false, `${e.technique} "${e.text}" is not caught by normalising`);
+    }
+  }
+});
+
+test('the unlisted lookalikes really are absent from the folding table', () => {
+  for (const [letter, glyph] of Object.entries(UNLISTED_LOOKALIKES)) {
+    assert.ok(!(glyph in CONFUSABLES), `${glyph} (for "${letter}") is in CONFUSABLES`);
+    assert.equal(glyph.normalize('NFKC'), glyph, `${glyph} is folded by NFKC`);
+    assert.equal(glyph.toLowerCase(), glyph);
+  }
+});
+
+test('a symbol at the edge of a word is punctuation, not a letter', () => {
+  // "hell!" used to become "helli", hiding the boundary the "!" provides.
+  for (const text of ['hell!', '(hell)', 'hell+', 'what the hell!', 'oh hell+ yes', '"hell,"']) {
+    const word = screen(text, { mode: 'word', terms: ['hell'] }).matches.length;
+    const norm = screen(text, { mode: 'normalized', terms: ['hell'] }).matches.length;
+    assert.equal(word, 1, `whole-word finds it in ${JSON.stringify(text)}`);
+    assert.equal(norm, 1, `normalising must not lose it in ${JSON.stringify(text)}`);
+  }
+});
+
+test('a symbol at the edge of a word can still stand for a letter', () => {
+  const find = (text, term) => screen(text, { mode: 'normalized', terms: [term] }).matches.length;
+  assert.equal(find('what an a$$ you are', 'ass'), 1, 'trailing $$');
+  assert.equal(find('what an @ss you are', 'ass'), 1, 'leading @');
+  assert.equal(find('what a $hot', 'shot'), 1, 'leading $');
+  assert.equal(find('what a sh!t', 'shit'), 1, 'inner !');
+  assert.equal(find('a sh0t', 'shot'), 1, 'inner digit');
+});
+
+test('normalised matching can only find more than whole-word matching', () => {
+  const battery = [
+    'hell!', '(hell)', 'hell+', 'hell, said the shell', 'Hello there, Michelle.',
+    'class analysis document Sussex', 'what the h3ll', 'a$$ and ass', 'SHOT! shot? shot.',
+    'hell hell hell', 'say "hell" now', 'ass-kicking', 'the hellish asses',
+  ];
+  for (const text of battery) {
+    const w = screen(text, { mode: 'word' }).matches.length;
+    const n = screen(text, { mode: 'normalized' }).matches.length;
+    assert.ok(n >= w, `normalised ${n} < whole-word ${w} for ${JSON.stringify(text)}`);
+  }
+});
+
+test('repeated letters match without collapsing the haystack', () => {
+  const find = (text, term) => screen(text, { mode: 'normalized', terms: [term] }).matches.length;
+  assert.equal(find('hellll', 'hell'), 1, 'collapsing used to turn this into "hel"');
+  assert.equal(find('asssss', 'ass'), 1, 'collapsing used to turn this into "as"');
+  assert.equal(find('shooot', 'shot'), 1);
+  assert.equal(find('what the heeeellll', 'hell'), 1);
+  // ...but "or more" never means "fewer": these are different words.
+  assert.equal(find('as', 'ass'), 0);
+  assert.equal(find('hel', 'hell'), 0);
+  assert.equal(find('a hello', 'hell'), 0, 'still whole-word, so no Scunthorpe');
+});
+
+test('spaced-out letters are joined without welding neighbouring words', () => {
+  assert.equal(normalize('you are h e l l today').output, 'you are hell today');
+  assert.equal(normalize('the h.e.l.l.').output, 'the hell.');
+  // Ordinary text with single-letter words must come through untouched.
+  for (const text of ['plan b or c will work.', 'take vitamin d and e daily.', 'see part a or b below.', 'i am a b student.']) {
+    assert.equal(normalize(text).output, text, 'single-letter words must not be welded to their neighbours');
+  }
+});
+
+test('screening normalisation keeps boundaries; canonical normalisation does not', () => {
+  // The two modes differ on purpose: screening needs word boundaries,
+  // canonicalisation (deduplication, usernames) needs one stable string.
+  assert.equal(normalize('hell!').output, 'helli');
+  assert.equal(normalize('hell!', SCREEN_NORMALIZE).output, 'hell!');
+  assert.equal(normalize('hellll').output, 'hel');
+  assert.equal(normalize('hellll', SCREEN_NORMALIZE).output, 'hellll');
 });
 
 test('normalize records every stage so the pipeline is inspectable', () => {

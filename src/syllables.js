@@ -180,11 +180,9 @@ export function totalSyllables(wordList) {
 /**
  * Count words with three or more syllables.
  *
- * Gunning Fog calls these "complex words", SMOG calls them "polysyllables";
- * both use the same 3+ threshold. Gunning's original additionally excludes
- * proper nouns, familiar compounds, and words made three syllables by an
- * -ed/-es inflection. We do not apply those exclusions, which biases Fog
- * slightly upward. See docs/limits.md.
+ * SMOG calls these "polysyllables" and counts every one. Gunning Fog calls
+ * the 3+ syllable words "complex words" but excludes some; see
+ * `complexWordCount()` for the Fog version.
  *
  * @param {string[]} wordList
  * @returns {number}
@@ -192,6 +190,67 @@ export function totalSyllables(wordList) {
 export function polysyllableCount(wordList) {
   let n = 0;
   for (const w of wordList) if (syllables(w) >= 3) n++;
+  return n;
+}
+
+/**
+ * Candidate base forms of a word ending in -ed, -es or -ing.
+ *
+ * There is no lemmatizer here, so several spellings are tried: the word with
+ * the suffix removed ("walk" from "walked"), with a silent "e" restored
+ * ("create" from "creating"), with a doubled final consonant undone
+ * ("run" from "running"), and with "i" turned back to "y" ("study" from
+ * "studied"). The caller checks whether any candidate is a plausible stem.
+ * @param {string} lower lowercase letters only
+ * @returns {string[]}
+ */
+function inflectionStems(lower) {
+  const m = /^(.{2,})(ing|ed|es)$/.exec(lower);
+  if (!m) return [];
+  const [, base, suffix] = m;
+  const stems = new Set([base, `${base}e`]);
+  if (/([^aeiou])\1$/.test(base)) stems.add(base.slice(0, -1));
+  if (/i$/.test(base)) stems.add(`${base.slice(0, -1)}y`);
+  // "-es" attaches to a stem ending in "e" by adding only an "s".
+  if (suffix === 'es') stems.add(lower.slice(0, -1));
+  return [...stems];
+}
+
+/**
+ * Whether Gunning's original definition would call this a complex word.
+ *
+ * A complex word has three or more syllables, except that a verb form made
+ * three syllables only by an -ed/-es/-ing inflection does not count:
+ * "following" is a two-syllable word plus a suffix, and "reviewing" is not
+ * hard because of it. The test is whether some plausible stem has at most two
+ * syllables and the inflection added at most one.
+ *
+ * This approximates the exclusion without a lemmatizer, so it can be wrong in
+ * both directions on unusual words. It does not attempt the other two
+ * exclusions (proper nouns, familiar compounds); see docs/limits.md.
+ *
+ * @param {string} word
+ * @returns {boolean}
+ */
+export function isComplexWord(word) {
+  const syl = syllables(word);
+  if (syl < 3) return false;
+  const lower = String(word).toLowerCase().replace(/[^a-z]/g, '');
+  return !inflectionStems(lower).some((stem) => {
+    const stemSyl = syllables(stem);
+    return stemSyl <= 2 && syl - stemSyl <= 1;
+  });
+}
+
+/**
+ * Count Gunning Fog "complex words": 3+ syllables, minus -ed/-es/-ing forms
+ * whose stem is shorter. See `isComplexWord()`.
+ * @param {string[]} wordList
+ * @returns {number}
+ */
+export function complexWordCount(wordList) {
+  let n = 0;
+  for (const w of wordList) if (isComplexWord(w)) n++;
   return n;
 }
 

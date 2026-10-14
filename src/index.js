@@ -13,7 +13,8 @@
 
 export { analyze, READING_WPM } from './analyze.js';
 export {
-  segment, sentences, words, paragraphs, normalizeWord, letterCount, graphemeCount, ABBREVIATIONS,
+  segment, sentences, words, paragraphs, normalizeWord, letterCount, graphemeCount, isNumeral,
+  ABBREVIATIONS, BEFORE_NUMBER, DATE_ABBREVIATIONS, SENTENCE_STARTERS,
 } from './tokenize.js';
 export {
   syllables, totalSyllables, polysyllableCount, monosyllableCount, EXCEPTIONS,
@@ -25,6 +26,7 @@ export {
 export { zipf, heaps, linearFit } from './laws.js';
 export { style, passiveCandidates, rhythm } from './style.js';
 export {
-  screen, normalize, compareModes, evasions, DEMO_TERMS, COLLATERAL, CONFUSABLES, LEET,
+  screen, normalize, compareModes, evasions, evasionReport, DEMO_TERMS, COLLATERAL, CONFUSABLES, LEET,
+  UNLISTED_LOOKALIKES, SCREEN_NORMALIZE,
 } from './screening.js';
 export { CITATIONS, formatCitation, cite } from './citations.js';
