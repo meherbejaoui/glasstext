@@ -86,6 +86,53 @@ export const LEET = {
  * @property {boolean} changed whether the stage altered anything
  */
 
+/** Characters a word is made of; a symbol is anything else that LEET maps. */
+const WORD_CHAR = /[\p{L}\p{N}]/u;
+
+/**
+ * The options `screen()` uses for its `normalized` mode, and the pipeline the
+ * UI displays. Two of the stages are lossy in a way that creates misses:
+ *
+ *   - `symbols: 'inner'` leaves a leet *symbol* alone when it sits at the edge
+ *     of a word. "hell!" would otherwise become "helli", whose trailing "i"
+ *     hides the word boundary the "!" was providing. Edge symbols are instead
+ *     resolved at match time, where both readings are available.
+ *   - `collapse: false` keeps repeated letters. Collapsing "hellll" gives
+ *     "hel", which no term matches. The matcher instead lets each run of
+ *     letters in a term match that many or more.
+ *
+ * `normalize()` called with no options keeps the full, canonical behaviour:
+ * every leet symbol substituted, every run collapsed. That is the right thing
+ * for deduplication or username uniqueness, where one canonical string matters
+ * more than preserving word boundaries.
+ */
+export const SCREEN_NORMALIZE = Object.freeze({ symbols: 'inner', collapse: false });
+
+/**
+ * Apply the leet table. In `inner` mode a symbol (as opposed to a digit) is
+ * substituted only when letters or digits sit on both sides of it.
+ * @param {string} text
+ * @param {'all'|'inner'} symbols
+ * @returns {string}
+ */
+function undoLeet(text, symbols) {
+  const chars = [...text];
+  let out = '';
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    const sub = LEET[ch];
+    if (sub === undefined) {
+      out += ch;
+    } else if (symbols === 'inner' && !WORD_CHAR.test(ch)
+      && !(WORD_CHAR.test(chars[i - 1] ?? ' ') && WORD_CHAR.test(chars[i + 1] ?? ' '))) {
+      out += ch;
+    } else {
+      out += sub;
+    }
+  }
+  return out;
+}
+
 /**
  * Normalise text for matching, recording each stage so the pipeline can be
  * displayed rather than trusted.
@@ -101,11 +148,12 @@ export const LEET = {
  *      would corrupt the earlier stages' inputs.
  *
  * @param {string} text
- * @param {{leet?: boolean, confusables?: boolean, collapse?: boolean}} [opts]
+ * @param {{leet?: boolean, confusables?: boolean, collapse?: boolean, symbols?: 'all'|'inner'}} [opts]
+ *   `symbols` is `'all'` (default) or `'inner'`; see SCREEN_NORMALIZE.
  * @returns {{output: string, steps: NormalizeStep[]}}
  */
 export function normalize(text, opts = {}) {
-  const { leet = true, confusables = true, collapse = true } = opts;
+  const { leet = true, confusables = true, collapse = true, symbols = 'all' } = opts;
   const steps = [];
   let cur = String(text);
 
@@ -128,14 +176,27 @@ export function normalize(text, opts = {}) {
   stage('strip diacritics', cur.normalize('NFD').replace(/\p{M}/gu, ''));
 
   if (leet) {
-    stage('undo leetspeak substitutions', [...cur].map((ch) => LEET[ch] ?? ch).join(''));
-    // Collapse runs of *isolated* letters ("h e l l o", "s.h.o.t") only.
-    // A blanket "remove separators between letters" rule would also weld
+    stage(
+      symbols === 'inner'
+        ? 'undo leetspeak substitutions (symbols only inside words)'
+        : 'undo leetspeak substitutions',
+      undoLeet(cur, symbols),
+    );
+    // Collapse runs of *isolated* letters ("h e l l", "s.h.o.t") only. A
+    // blanket "remove separators between letters" rule would also weld
     // "hello world" into "helloworld", inventing matches that span a real word
     // boundary -- a false positive of our own making.
+    //
+    // The run must be bounded by non-letters on both sides. Without that, the
+    // pattern starts on the last letter of the preceding word and ends on the
+    // first letter of the following one: "you are h e l l today" became
+    // "you arehelltoday", and "Plan B or C" became "planborc".
     stage(
       'join spaced-out letters',
-      cur.replace(/(?:\p{L}[\s._\-*+]){2,}\p{L}/gu, (m) => m.replace(/[\s._\-*+]/g, '')),
+      cur.replace(
+        /(?<![\p{L}\p{N}])(?:\p{L}[\s._\-*+]){2,}\p{L}(?![\p{L}\p{N}])/gu,
+        (m) => m.replace(/[\s._\-*+]/g, ''),
+      ),
     );
   }
 
@@ -165,6 +226,54 @@ function escapeRe(s) {
 }
 
 /**
+ * For each letter, the leet *symbols* that can stand for it ("s" -> "$").
+ * Digits are excluded: they are already substituted before matching.
+ * @type {Record<string, string[]>}
+ */
+const SYMBOLS_FOR = {};
+for (const [ch, letter] of Object.entries(LEET)) {
+  if (!WORD_CHAR.test(ch)) (SYMBOLS_FOR[letter] ??= []).push(ch);
+}
+
+/**
+ * Build the regular expression source for a term in `normalized` mode.
+ *
+ * Two things the normaliser cannot safely do up front are done here, where
+ * the haystack's real word boundaries are still visible:
+ *
+ *   - A symbol at the edge of a word was left alone, so it may be punctuation
+ *     ("hell!") or a letter ("a$$"). Each letter of the term therefore
+ *     accepts the symbols that can stand for it, while the boundary tests
+ *     still treat a symbol as a boundary.
+ *   - A run of k identical letters in the term matches k or more in the text,
+ *     so "hell" matches "hellll" and "ass" matches "asssss". Collapsing the
+ *     haystack instead would turn "hellll" into "hel" and lose the match.
+ *     "Or more" never matches fewer, so "ass" still does not match "as".
+ *
+ * @param {string} term lowercased term
+ * @returns {string} regex source, without lookarounds
+ */
+function tolerantPattern(term) {
+  const chars = [...term];
+  let out = '';
+  for (let i = 0; i < chars.length;) {
+    let j = i;
+    while (j < chars.length && chars[j] === chars[i]) j++;
+    const ch = chars[i];
+    const n = j - i;
+    if (/\p{L}/u.test(ch)) {
+      const alts = SYMBOLS_FOR[ch] ?? [];
+      const cls = alts.length ? `[${ch}${alts.map((a) => a.replace(/[\\\]^-]/g, '\\$&')).join('')}]` : escapeRe(ch);
+      out += `${cls}${n === 1 ? '+' : `{${n},}`}`;
+    } else {
+      out += escapeRe(ch).repeat(n);
+    }
+    i = j;
+  }
+  return out;
+}
+
+/**
  * Screen text against a term list in one of three modes.
  *
  * - `substring`  match anywhere. The naive implementation, and the one most
@@ -184,7 +293,7 @@ export function screen(text, opts = {}) {
   let searched = String(text);
   let steps = [];
   if (mode === 'normalized') {
-    const n = normalize(searched, normalizeOpts);
+    const n = normalize(searched, { ...SCREEN_NORMALIZE, ...normalizeOpts });
     searched = n.output;
     steps = n.steps;
   }
@@ -195,9 +304,11 @@ export function screen(text, opts = {}) {
 
   for (const term of terms) {
     if (!term) continue;
+    const lower = term.toLowerCase();
+    const body = mode === 'normalized' ? tolerantPattern(lower) : escapeRe(lower);
     const pattern = mode === 'substring'
-      ? new RegExp(escapeRe(term.toLowerCase()), 'g')
-      : new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(term.toLowerCase())}(?![\\p{L}\\p{N}])`, 'gu');
+      ? new RegExp(body, 'g')
+      : new RegExp(`(?<![\\p{L}\\p{N}])${body}(?![\\p{L}\\p{N}])`, 'gu');
 
     let m;
     while ((m = pattern.exec(haystack)) !== null) {
@@ -263,27 +374,106 @@ export function compareModes(text, terms = DEMO_TERMS) {
 }
 
 /**
- * Generate evasions of a term, to demonstrate what whole-word matching misses.
+ * Letters whose lookalike glyph is deliberately absent from CONFUSABLES.
+ * CONFUSABLES is a curated subset of UTS #39, so any lookalike outside it
+ * defeats the folding stage: the real table has thousands of entries and no
+ * short list can be complete. Each glyph here is verified, in the tests, to
+ * be missing from CONFUSABLES and untouched by NFKC.
+ */
+export const UNLISTED_LOOKALIKES = {
+  a: 'ɑ', d: 'ԁ', g: 'ɡ', h: 'һ', k: 'κ', l: 'ӏ', m: 'м', n: 'ո', q: 'ԛ', s: 'ꜱ', u: 'υ', w: 'ԝ',
+};
+
+/**
+ * @typedef {object} Evasion
+ * @property {string} technique
+ * @property {string} text
+ * @property {'designed-for'|'independent'} family
+ *   `designed-for`: some stage of `normalize()` was written to undo exactly
+ *   this, and the generator draws on the same tables that stage reverses, so a
+ *   catch measures internal consistency. `independent`: no stage was written
+ *   for it and no table is shared, so a catch (or a miss) is evidence.
+ */
+
+/**
+ * Generate evasions of a term, to demonstrate what whole-word matching misses
+ * and what normalising does and does not recover.
  *
  * These are the standard, decades-old techniques. Showing them is the point:
  * a filter's users discover them within hours, so a filter designer who has
  * not tried them is the only person in the room who does not know.
  *
+ * The first seven are `designed-for`: `leetspeak` and `Cyrillic homoglyphs` are
+ * generated from the same tables `normalize()` reverses, and the other five are
+ * undone by a stage written for exactly that. Their near-perfect catch rate is
+ * therefore expected, and says the pipeline is consistent with itself. The
+ * last three are `independent` -- edit-distance-one typos and lookalikes the
+ * table does not list -- and are the honest test of robustness.
+ *
  * @param {string} term
- * @returns {Array<{technique: string, text: string}>}
+ * @returns {Evasion[]} only techniques that actually change the term
  */
 export function evasions(term) {
   const t = String(term).toLowerCase();
+  const chars = [...t];
   const leetFor = { a: '4', e: '3', i: '1', o: '0', s: '$', t: '7', g: '9', b: '8' };
   const homoglyphFor = { a: 'а', e: 'е', o: 'о', c: 'с', p: 'р', x: 'х', y: 'у', i: 'і' };
 
-  return [
-    { technique: 'leetspeak', text: [...t].map((c) => leetFor[c] ?? c).join('') },
-    { technique: 'Cyrillic homoglyphs', text: [...t].map((c) => homoglyphFor[c] ?? c).join('') },
-    { technique: 'internal spacing', text: [...t].join(' ') },
-    { technique: 'punctuation infix', text: [...t].join('.') },
-    { technique: 'zero-width joiner', text: [...t].join('​') },
-    { technique: 'repeated letters', text: [...t].map((c, i) => (i === 1 ? c.repeat(3) : c)).join('') },
+  // First adjacent pair of different letters, preferring one after the first
+  // letter (first letters are the ones people keep), swapped. Always differs
+  // from the term unless every letter is the same.
+  const differs = (c, i) => i + 1 < chars.length && c !== chars[i + 1];
+  let swapAt = chars.findIndex((c, i) => i >= 1 && differs(c, i));
+  if (swapAt < 0) swapAt = chars.findIndex(differs);
+  const swapped = swapAt < 0 ? chars : chars.map((c, i) => (
+    i === swapAt ? chars[swapAt + 1] : i === swapAt + 1 ? chars[swapAt] : c
+  ));
+  // An extra letter after the second one. Chosen to differ from its neighbours,
+  // since a doubled letter is an elongation, which the matcher tolerates.
+  const filler = ['x', 'z', 'q'].find((f) => f !== chars[1] && f !== chars[2]);
+  const inserted = chars.map((c, i) => (i === 1 ? `${c}${filler}` : c));
+  const lookalike = chars.map((c) => UNLISTED_LOOKALIKES[c] ?? c);
+
+  const designed = [
+    { technique: 'leetspeak', text: chars.map((c) => leetFor[c] ?? c).join('') },
+    { technique: 'Cyrillic homoglyphs', text: chars.map((c) => homoglyphFor[c] ?? c).join('') },
+    { technique: 'internal spacing', text: chars.join(' ') },
+    { technique: 'punctuation infix', text: chars.join('.') },
+    { technique: 'zero-width joiner', text: chars.join('\u200b') },
+    { technique: 'repeated letters', text: chars.map((c, i) => (i === 1 ? c.repeat(3) : c)).join('') },
     { technique: 'diacritics', text: t.replace(/a/g, 'á').replace(/e/g, 'é').replace(/o/g, 'ø') },
-  ];
+  ].map((e) => ({ ...e, family: 'designed-for' }));
+
+  const independent = [
+    { technique: 'adjacent swap', text: swapped.join('') },
+    { technique: 'inserted letter', text: inserted.join('') },
+    { technique: 'unlisted homoglyphs', text: lookalike.join('') },
+  ].map((e) => ({ ...e, family: 'independent' }));
+
+  // A technique that cannot alter this term ("cum" has no leet or accented
+  // letters) produces the plain term, which is not an evasion and would only
+  // flatter whole-word matching.
+  return [...designed, ...independent].filter((e) => e.text !== t);
+}
+
+/** The sentence an evasion is dropped into when it is scored. */
+export const EVASION_CARRIER = (text) => `you are ${text} today`;
+
+/**
+ * Score every evasion of `term` against whole-word and normalised matching.
+ *
+ * Evasions are scored inside a sentence, as they would appear in practice. A
+ * standalone token is a friendlier test than real text: the pipeline once
+ * welded "you are h e l l today" into "you arehelltoday", which a standalone
+ * test cannot show.
+ *
+ * @param {string} term
+ * @returns {Array<Evasion & {word: boolean, normalized: boolean}>}
+ */
+export function evasionReport(term) {
+  return evasions(term).map((e) => {
+    const text = EVASION_CARRIER(e.text);
+    const hit = (mode) => screen(text, { terms: [term], mode }).matches.length > 0;
+    return { ...e, word: hit('word'), normalized: hit('normalized') };
+  });
 }

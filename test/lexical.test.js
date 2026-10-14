@@ -145,3 +145,43 @@ test('zipf returns the intercept so the drawn line is the real fit', () => {
   // log10(5000) = 3.699; the fitted line must pass through it at rank 1 (x=0).
   assert.ok(Math.abs(z.intercept - Math.log10(5000)) < 0.01, `intercept was ${z.intercept}`);
 });
+
+test('zipf: the once-occurring plateau is left out of the fit, and the difference is real', () => {
+  // A clean f = 1000/rank head over 30 ranks, then 170 words that occur once.
+  const head = Array.from({ length: 30 }, (_, i) => ({ rank: i + 1, count: Math.round(1000 / (i + 1)) }));
+  const tail = Array.from({ length: 170 }, (_, i) => ({ rank: 31 + i, count: 1 }));
+  const freq = [...head, ...tail];
+
+  const trimmed = zipf(freq);
+  const everything = zipf(freq, 0, 1);
+
+  assert.ok(Math.abs(trimmed.alpha - 1) < 0.1, `fit to the repeated words recovers alpha ~ 1, got ${trimmed.alpha}`);
+  // The plateau distorts the slope. Here the head is steep and then drops to 1,
+  // which makes alpha too high; on short real texts the same plateau makes it
+  // too low. Either way the all-ranks fit is materially wrong and fits worse.
+  assert.ok(Math.abs(everything.alpha - trimmed.alpha) > 0.3,
+    `the plateau distorts the slope: ${everything.alpha} vs ${trimmed.alpha}`);
+  assert.ok(trimmed.r2 > everything.r2, 'and fits worse');
+
+  assert.equal(trimmed.points.length, 200, 'the chart still gets every word');
+  assert.equal(trimmed.fitted, 30);
+  assert.equal(trimmed.fitMinCount, 2);
+  assert.equal(trimmed.fitMaxRank, 30);
+  assert.match(trimmed.note, /occurring at least 2 times/);
+});
+
+test('zipf: with too few repeated words it fits everything and says alpha is distorted', () => {
+  const freq = Array.from({ length: 60 }, (_, i) => ({ rank: i + 1, count: i < 3 ? 5 - i : 1 }));
+  const z = zipf(freq);
+  assert.equal(z.fitMinCount, 1);
+  assert.equal(z.fitted, 60);
+  assert.match(z.note, /distorted by the plateau/);
+});
+
+test('zipf: maxRank still limits the fit to the head', () => {
+  const freq = Array.from({ length: 100 }, (_, i) => ({ rank: i + 1, count: 5000 / (i + 1) }));
+  const z = zipf(freq, 20);
+  assert.equal(z.fitted, 20);
+  assert.equal(z.fitMaxRank, 20);
+  assert.equal(z.points.length, 100);
+});

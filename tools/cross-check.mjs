@@ -38,6 +38,7 @@ for name, text in data.items():
         "smog": textstat.smog_index(text),
         "coleman-liau": textstat.coleman_liau_index(text),
         "automated-readability-index": textstat.automated_readability_index(text),
+        "_version": str(getattr(textstat, "__version__", "unknown")),
         "_counts": {
             "words": textstat.lexicon_count(text),
             "sentences": textstat.sentence_count(text),
@@ -56,6 +57,10 @@ const files = Object.keys(samples);
 const theirs = JSON.parse(
   execFileSync('python3', ['-c', PY], { input: JSON.stringify(samples), encoding: 'utf8' }),
 );
+
+// textstat's syllable counting has changed between releases, and Flesch moves
+// by tens of points when it does. Record which release produced these numbers.
+console.log(`textstat version: ${theirs[files[0]]._version}`);
 
 const rows = [];
 const deltasByMetric = new Map();

@@ -47,11 +47,23 @@ much as the measurement is.
 The page ships this Content-Security-Policy:
 
 ```
-connect-src 'none'
+default-src 'self';
+connect-src 'none';
+script-src 'self';
+style-src 'self';
+img-src 'self' data:;
+font-src 'self';
+base-uri 'none';
+form-action 'none';
+object-src 'none'
 ```
 
-`fetch`, `XMLHttpRequest`, `WebSocket` and `EventSource` are blocked by the
-browser itself. Not "we promise not to" — *cannot*. There is no analytics, no
+`connect-src 'none'` is the directive that matters most: `fetch`,
+`XMLHttpRequest`, `WebSocket` and `EventSource` are blocked by the browser
+itself. The rest keep it honest: `default-src 'self'` closes every channel not
+named, `script-src 'self'` and `style-src 'self'` forbid inline code, and
+`form-action 'none'` stops a form from posting your text anywhere. Not "we
+promise not to" — *cannot*. There is no analytics, no
 telemetry, no font CDN, no third-party script, and no build step that could
 smuggle one in. Sample texts are embedded in a module rather than fetched,
 because fetching them would have required an exception to the rule.
@@ -69,9 +81,26 @@ Things this project does that similar tools usually skip:
   `npm run validate:syllables`.
 - **The formulas are cross-checked against an independent implementation.**
   Word and sentence counts match [textstat](https://github.com/textstat/textstat)
-  exactly on the sample texts; score gaps are ≤1.8 and each one is explained.
+  exactly on the sample texts. The grade-level formulas differ by 0.25–0.70
+  grades on average (1.18 at worst), and Flesch Reading Ease, which is on a
+  100-point scale, by 1.84 points on average (4.41 at worst); each gap is
+  explained. That table predates a Fog change and could not be reproduced
+  against current textstat releases, which `docs/validation.md` says plainly.
   This surfaced a real discrepancy: textstat's docstring prints the Coleman–Liau
   coefficient as `0.058` where the published value is `0.0588`.
+- **The sentence splitter is measured too.** Every formula divides by its
+  count, so it matters more than the syllable counter. Against the UD English
+  Web Treebank it has ≈99% boundary precision and 72% recall: it finds about
+  84% of the true sentences on web text, so scores read harder than the text
+  is. `npm run validate:sentences` reproduces it; the number for edited prose
+  is not measured, and the docs say so.
+- **The evasion demo labels its own circularity.** Normalising catches 40 of 40
+  evasions its stages were written to undo, and 0 of 18 that they were not
+  (typos, unlisted lookalikes). Both figures are shown, scored inside a
+  sentence rather than as bare tokens. `npm run validate:screening`.
+- **Numerals are treated as missing data, not zero-syllable words.** Adding
+  only numbers to a sentence once made Flesch Reading Ease rise from 42.6 to
+  75.5. Now it falls to 40.6, and the formulas say they left numerals out.
 - **Known-wrong behaviour is pinned in tests**, not hidden. `"Meet me at 9 a.m.
   We can talk."` fails to split; `"the results were mixed"` is misread as
   passive. Both are asserted as-is so a future fix is visible.
@@ -117,9 +146,11 @@ import { compareModes } from './src/screening.js';
 ## Develop
 
 ```bash
-npm test                      # 101 tests, no dependencies (files live flat in test/)
+npm test                      # 128 tests, no dependencies (files live flat in test/)
 npm run serve                 # http://localhost:8080
 npm run validate:syllables    # score the counter against CMUdict
+npm run validate:sentences    # score the splitter against UD English EWT
+npm run validate:screening    # catch rates on generated evasions
 npm run gen:references        # regenerate REFERENCES.md from src/citations.js
 node tools/cross-check.mjs    # compare against textstat (needs pip install textstat)
 ```

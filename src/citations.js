@@ -61,8 +61,26 @@ export const CITATIONS = {
     verified: 'secondary',
     note:
       'Gunning excludes proper nouns, familiar compound words, and words made ' +
-      'polysyllabic only by inflection. This implementation applies none of ' +
-      'those exclusions, so our Fog runs slightly high. See docs/limits.md.',
+      'three syllables only by an -ed/-es/-ing inflection. This implementation ' +
+      'approximates the third exclusion (see complexWordCount in ' +
+      'src/syllables.js) and applies neither of the others, so our Fog still ' +
+      'runs slightly high on name-heavy text. See docs/limits.md.',
+  },
+  clauset2009: {
+    id: 'clauset2009',
+    authors: 'Clauset, A., Shalizi, C. R., & Newman, M. E. J.',
+    year: 2009,
+    title: 'Power-law distributions in empirical data',
+    source: 'SIAM Review',
+    locator: '51(4), 661-703',
+    url: 'https://doi.org/10.1137/070710111',
+    verified: 'secondary',
+    note:
+      'Cited for two recommendations: fit a power law only above a minimum ' +
+      'value rather than over the whole range, and prefer maximum likelihood to ' +
+      'least squares on a log-log plot. We follow the first (zipf() leaves out ' +
+      'words occurring once) and not the second. The original was not read ' +
+      'directly in building this project.',
   },
   mclaughlin1969: {
     id: 'mclaughlin1969',

@@ -130,7 +130,11 @@ readability scores fractionally kinder than they deserve.</p>
 
 <p>We cross-check the whole pipeline against <a href="https://github.com/textstat/textstat"
 rel="noopener">textstat</a>, an independent Python implementation. On our sample texts, word
-and sentence counts match exactly, and the scores agree to within about a grade:</p>
+and sentence counts match exactly. The grade-level formulas agree to within about a grade
+(1.18 at worst), and Flesch Reading Ease, which is on a 100-point scale, to within about two
+points on average (4.4 at worst). That table was recorded before we changed how Gunning Fog
+treats inflected words, and it did not reproduce against current textstat releases, whose own
+syllable counting has changed; the project's validation notes say so.</p>
 
 <div class="table-wrap">
 <table>
@@ -201,9 +205,11 @@ word lists, tables, and heavily templated text visibly leave the line.</p>
 
 <p>One disclosure about our own method: we fit by least squares in log-log space. This is the
 standard quick approach and it is statistically sloppy, because it weights the long noisy tail
-of once-occurring words as heavily as the well-estimated head. Maximum-likelihood estimation
-would be more defensible. We use the log-log fit because it is the line you can actually see
-on the chart, and we would rather tell you that than let you assume otherwise.</p>
+of once-occurring words as heavily as the well-estimated head, and in a short text that tail is
+most of the points. We therefore leave out words that occur only once, which on our sample texts
+moved the fit's R&sup2; from 0.70&ndash;0.83 to 0.84&ndash;0.95. Maximum-likelihood estimation
+would still be more defensible. We use the log-log fit because it is the line you can actually
+see on the chart, and we would rather tell you that than let you assume otherwise.</p>
 
 <h2 id="filters">The Scunthorpe problem: why wordlist filters never worked</h2>
 
@@ -231,10 +237,19 @@ its failure modes are identical whatever words you put in.</p>
   <tbody>
     <tr><td>Substring matching</td><td>Some</td><td><strong>Catastrophic</strong> — <em>class</em>, <em>analysis</em>, <em>document</em>, <em>Sussex</em></td></tr>
     <tr><td>Whole-word matching</td><td><strong>No</strong> — <code>h3ll</code>, <code>h e l l</code>, Cyrillic <code>һеӏӏ</code></td><td>None</td></tr>
-    <tr><td>Normalise, then match</td><td>Most</td><td>Some return, by construction</td></tr>
+    <tr><td>Normalise, then match</td><td>The standard tricks it was built for; <strong>not</strong> typos or lookalike letters outside its table</td><td>Some return, by construction</td></tr>
   </tbody>
 </table>
 </div>
+
+<p>Be careful how you read that last row. The Filter lab scores two kinds of evasion
+separately. The first are the decades-old techniques (leetspeak, spaced-out letters,
+zero-width characters, homoglyphs) that the normalisation pipeline was written to undo; it
+catches all of them, but that mostly shows the pipeline agrees with itself. The second are
+single-letter typos (<code>hlel</code>, <code>hexll</code>) and lookalike letters the folding
+table does not list (<code>һеӏӏ</code>). Nothing in the pipeline was written for those, and it
+catches none of them. Catching typos takes fuzzy matching, which trades the miss for a flood of
+innocent words.</p>
 
 <p>The normalisation pipeline is worth understanding because it generalises far beyond
 profanity — it is the same machinery you need for search, deduplication, and username

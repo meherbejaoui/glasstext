@@ -94,3 +94,15 @@ test('syllables: accuracy against the committed CMUdict sample', async () => {
     `within-1 accuracy fell to ${within1Pct.toFixed(2)}% (floor 99%)`,
   );
 });
+
+test('isComplexWord: inflection exclusion works both ways', async () => {
+  const { isComplexWord, complexWordCount } = await import('../src/syllables.js');
+  for (const w of ['following', 'reviewing', 'requested', 'presented', 'beginning', 'accepted']) {
+    assert.equal(isComplexWord(w), false, `${w} is a short stem plus a suffix`);
+  }
+  for (const w of ['committee', 'implementation', 'unexpected', 'disappointed', 'interesting', 'necessitates', 'beautiful']) {
+    assert.equal(isComplexWord(w), true, `${w} is complex in its own right`);
+  }
+  assert.equal(isComplexWord('cat'), false);
+  assert.equal(complexWordCount(['following', 'implementation', 'cat']), 1);
+});
